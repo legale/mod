@@ -53,6 +53,35 @@ static void test_setlogmask2(void) {
   free(out);
 }
 
+static void test_setlogmask2_edges(void) {
+  // mask out everything
+  setlogmask2(0);
+  char *out = NULL;
+  size_t sz = 0;
+  FILE *old, *mem = capture_start(&out, &sz, &old);
+  syslog2(LOG_ERR, "blocked");
+  capture_end(mem, old);
+  if (sz > 0) {
+    assert(strstr(out, "blocked") == NULL);
+  }
+  free(out);
+
+  // enable all bits explicitly
+  setlogmask2(-1);
+  out = NULL;
+  sz = 0;
+  mem = capture_start(&out, &sz, &old);
+  syslog2(LOG_NOTICE, "allowed again");
+  capture_end(mem, old);
+  assert(strstr(out, "allowed again") != NULL);
+  free(out);
+}
+
+static void test_debug_call(void) {
+  // exercise the debug() wrapper even when DEBUG is not defined
+  debug("unused message %d", 1);
+}
+
 static void test_inline_pthread_set_name(void) {
   const char *longname = "ABCDEFGHIJKLMNOPQRSTUV"; // >15 chars
   inline_pthread_set_name(longname, strlen(longname));
@@ -103,8 +132,10 @@ int main(void) {
   syslog2(LOG_INFO, "Starting test");
 
   test_setlogmask2();
+  test_setlogmask2_edges();
   test_inline_pthread_set_name();
   test_print_last_functions();
+  test_debug_call();
   test_syslog2_printf();
   test_syslog_branch();
 
