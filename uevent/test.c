@@ -1,5 +1,6 @@
 
 #include "uevent.h"
+#include "uevent_worker.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -76,6 +77,100 @@ void test_uevent_active() {
   assert(triggered == 1);
   uevent_free(uev);
   uevent_deinit(base);
+  PRINT_TEST_PASSED();
+}
+
+void test_worker_pool_create_destroy() {
+  PRINT_TEST_START("worker pool create/destroy");
+  uevent_worker_pool_t *pool = uevent_worker_pool_create(2);
+  assert(pool != NULL);
+  assert(uevent_worker_pool_is_idle(pool));
+  uevent_worker_pool_destroy(pool);
+  PRINT_TEST_PASSED();
+}
+
+void test_worker_pool_insert_execute() {
+  PRINT_TEST_START("worker pool insert and execute");
+  uevent_worker_pool_t *pool = uevent_worker_pool_create(2);
+  assert(pool != NULL);
+
+  uevent_base_t *base = uevent_base_new_with_workers(8, 0);
+  assert(base != NULL);
+
+  atomic_int counter;
+  atomic_init(&counter, 0);
+
+  void cb(uevent_t * ev, int fd, short event, void *arg) {
+    (void)fd;
+    (void)event;
+    (void)arg;
+    atomic_fetch_add(&counter, 1);
+  }
+
+  uev_t *uev =
+      uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, cb, NULL, "wp");
+  assert(uev != NULL);
+
+  uint64_t now = tu_clock_gettime_monotonic_fast_ms();
+  uevent_worker_pool_insert(pool, uev, UEV_TIMEOUT, now);
+
+  uevent_worker_pool_wait_for_idle(pool);
+  assert(atomic_load(&counter) == 1);
+
+  uevent_free(uev);
+  uevent_deinit(base);
+  uevent_worker_pool_destroy(pool);
+  PRINT_TEST_PASSED();
+}
+
+void test_worker_pool_stop_wait() {
+  PRINT_TEST_START("worker pool stop and wait for idle");
+  uevent_worker_pool_t *pool = uevent_worker_pool_create(1);
+  assert(pool != NULL);
+
+  uevent_base_t *base = uevent_base_new_with_workers(8, 0);
+  assert(base != NULL);
+
+  atomic_int counter;
+  atomic_init(&counter, 0);
+
+  void long_cb(uevent_t * ev, int fd, short event, void *arg) {
+    (void)fd;
+    (void)event;
+    (void)arg;
+    atomic_fetch_add(&counter, 1);
+    msleep(100);
+  }
+
+  void cb2(uevent_t * ev, int fd, short event, void *arg) {
+    (void)fd;
+    (void)event;
+    (void)arg;
+    atomic_fetch_add(&counter, 1);
+  }
+
+  uev_t *uev1 =
+      uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, long_cb, NULL,
+                                    "long");
+  uev_t *uev2 =
+      uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, cb2, NULL,
+                                    "short");
+  assert(uev1 && uev2);
+
+  uint64_t now = tu_clock_gettime_monotonic_fast_ms();
+  uevent_worker_pool_insert(pool, uev1, UEV_TIMEOUT, now);
+  uevent_worker_pool_insert(pool, uev2, UEV_TIMEOUT, now);
+
+  msleep(10);
+  uevent_worker_pool_stop(pool);
+  uevent_worker_pool_wait_for_idle(pool);
+
+  assert(atomic_load(&counter) == 1);
+
+  uevent_free(uev1);
+  uevent_free(uev2);
+  uevent_deinit(base);
+  uevent_worker_pool_destroy(pool);
   PRINT_TEST_PASSED();
 }
 
@@ -1318,6 +1413,9 @@ int main() {
   test_real_world_load_simulation();
   test_refcount_during_callback_execution();
   test_uevent_active();
+  test_worker_pool_create_destroy();
+  test_worker_pool_insert_execute();
+  test_worker_pool_stop_wait();
   test_uevent_add_with_current_timeout();
 
   test_persist_and_self_adding_timer();
