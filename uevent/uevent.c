@@ -19,7 +19,7 @@
 
 #include "../list.h"
 #include "../minheap/minheap.h"
-#include "../syslog.h"
+#include "../syslog2/syslog2.h"
 #include "../timeutil/timeutil.h"
 
 #include "uevent.h"

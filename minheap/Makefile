@@ -5,11 +5,11 @@ AR = ar
 ARFLAGS = rcs
 LIBNAME = libminheap.a
 OBJ = minheap.o
-TEST_OBJ = test.o ../syslog.o
+TEST_OBJ = test.o
 MAIN_OBJ = main.o 
 
-LDFLAGS = -L. 
-LIBS = -lminheap 
+LDFLAGS = -L. -L../syslog2 -L../timeutil
+LIBS = -lminheap -lsyslog2 -ltimeutil
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -46,9 +46,12 @@ main: main.o $(LIBNAME)
 #чтобы не удалять бинарник теста
 .PRECIOUS: test
 
-test: $(TEST_OBJ) $(LIBNAME) 
+test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	./test
+
+../syslog2/libsyslog2.a:
+	$(MAKE) -C ../syslog2
 
 main.o: main.c minheap.h
 	$(CC) $(CFLAGS) -c main.c 
@@ -56,8 +59,6 @@ main.o: main.c minheap.h
 test.o: test.c minheap.h
 	$(CC) $(CFLAGS) -c test.c
 
-../syslog.o: ../syslog.c ../syslog.h
-	$(CC) $(CFLAGS) -c ../syslog.c -o ../syslog.o
 
 perf: test
 	@echo "Running valgrind callgrind profiler..."

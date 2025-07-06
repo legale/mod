@@ -1,4 +1,4 @@
-#include "../syslog.h"
+#include "../syslog2/syslog2.h"
 
 #include "heap-inl.h"
 #include "minheap.h"
@@ -54,6 +54,10 @@ typedef struct {
 
 #define MS_PER_SEC (1000U)
 #define NS_PER_MS (1000000U)
+
+static inline int clock_gettime_fast(struct timespec *ts, bool raw) {
+  return clock_gettime(raw ? CLOCK_MONOTONIC_RAW : CLOCK_MONOTONIC, ts);
+}
 
 static uint64_t get_current_time_ms(void) {
   struct timespec ts;
