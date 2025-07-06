@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
 #include <unistd.h>
 
 #define KNRM "\x1B[0m"
@@ -24,9 +25,10 @@
   printf(KYEL "%s:%d [INFO] " fmt "\n" KNRM, __FILE__, __LINE__, ##__VA_ARGS__)
 
 // Заглушка для uevent_t
-typedef struct {
+struct uevent_s {
   int dummy;
-} uevent_t;
+};
+typedef struct uevent_s uevent_t;
 
 // Заглушка для tu_pause_start и tu_pause_end
 static int pause_end_called = 0;
@@ -38,12 +40,36 @@ static void mock_tu_pause_end(void) {
   PRINT_TEST_INFO("mock_tu_pause_end called");
 }
 
+static void filter_cb(const char *ifname, uint32_t events, void *arg) {
+  (void)ifname;
+  nl_cb_arg_t *cb_arg = arg;
+  if (!cb_arg)
+    return;
+  if (events & NLMON_EVENT_LINK_UP) {
+    cb_arg->tu_pause_end();
+  }
+}
+
+static int cb1_called = 0;
+static int cb2_called = 0;
+static void cb1(const char *ifname, uint32_t events, void *arg) {
+  (void)ifname;
+  (void)events;
+  (void)arg;
+  cb1_called++;
+}
+static void cb2(const char *ifname, uint32_t events, void *arg) {
+  (void)ifname;
+  (void)events;
+  (void)arg;
+  cb2_called++;
+}
+
 // Тест инициализации Netlink-сокета
 static void test_init_netlink_monitor(void) {
   PRINT_TEST_START("init_netlink_monitor");
 
-  const char *ifname = "lo"; // Используем "lo" как тестовый интерфейс
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor();
   assert(fd >= 0);
   PRINT_TEST_INFO("Netlink socket fd: %d", fd);
 
@@ -62,8 +88,7 @@ static void test_init_netlink_monitor(void) {
 static void test_deinit_netlink_monitor(void) {
   PRINT_TEST_START("deinit_netlink_monitor");
 
-  const char *ifname = "lo";
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor();
   assert(fd >= 0);
 
   deinit_netlink_monitor(fd);
@@ -84,8 +109,15 @@ static void test_nl_handler_cb(void) {
   uevent_t ev = {.dummy = 0};
   pause_end_called = 0;
 
+  const char *names[] = {ifname, NULL};
+  nlmon_filter_t filter = {
+      .ifnames = names,
+      .events = NLMON_EVENT_LINK_UP,
+      .cb = filter_cb,
+      .arg = &cb_arg};
+
   // Создаём Netlink-сокет
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor();
   assert(fd >= 0);
 
   // Эмулируем Netlink-сообщение RTM_NEWLINK
@@ -109,8 +141,9 @@ static void test_nl_handler_cb(void) {
   // Отправляем сообщение в сокет
   assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
 
+  nlmon_test_msg_t msg = {.buf = buf, .len = nh->nlmsg_len};
   // Вызываем callback
-  nl_handler_cb(&ev, fd, EPOLLIN, &cb_arg);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, &filter, 1);
   assert(pause_end_called == 1); // Проверяем, что tu_pause_end был вызван
 
   deinit_netlink_monitor(fd);
@@ -125,15 +158,72 @@ static void test_nl_handler_cb_invalid_ifname(void) {
       .ifname = "invalid_ifname_123",
       .tu_pause_start = mock_tu_pause_start,
       .tu_pause_end = mock_tu_pause_end};
+  const char *names[] = {"invalid_ifname_123", NULL};
+  nlmon_filter_t filter = {
+      .ifnames = names,
+      .events = NLMON_EVENT_LINK_UP,
+      .cb = filter_cb,
+      .arg = &cb_arg};
   uevent_t ev = {.dummy = 0};
   pause_end_called = 0;
 
-  int fd = init_netlink_monitor("lo");
+  int fd = init_netlink_monitor();
   assert(fd >= 0);
 
+  nlmon_test_msg_t msg = {.buf = NULL, .len = 0};
   // Вызываем callback с некорректным ifname
-  nl_handler_cb(&ev, fd, EPOLLIN, &cb_arg);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, &filter, 1);
   assert(pause_end_called == 0); // tu_pause_end не должен быть вызван
+
+  deinit_netlink_monitor(fd);
+  PRINT_TEST_PASSED();
+}
+
+static void test_nl_handler_cb_multiple_filters(void) {
+  PRINT_TEST_START("nl_handler_cb_multiple_filters");
+
+  const char *ifname = "lo";
+  const char *names[] = {ifname, NULL};
+  nlmon_filter_t filters[2] = {
+      {.ifnames = names, .events = NLMON_EVENT_LINK_UP, .cb = cb1, .arg = NULL},
+      {.ifnames = NULL, .events = NLMON_EVENT_LINK_DOWN, .cb = cb2, .arg = NULL}};
+
+  uevent_t ev = {.dummy = 0};
+  cb1_called = cb2_called = 0;
+
+  int fd = init_netlink_monitor();
+  assert(fd >= 0);
+
+  char buf[8192];
+  struct nlmsghdr *nh = (struct nlmsghdr *)buf;
+  struct ifinfomsg *ifi = (struct ifinfomsg *)(buf + NLMSG_HDRLEN);
+  unsigned int ifindex = if_nametoindex(ifname);
+  assert(ifindex != 0);
+
+  nh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+  nh->nlmsg_type = RTM_NEWLINK;
+  nh->nlmsg_flags = 0;
+  nh->nlmsg_seq = 0;
+  nh->nlmsg_pid = 0;
+  ifi->ifi_family = AF_UNSPEC;
+  ifi->ifi_index = ifindex;
+  ifi->ifi_type = 0;
+  ifi->ifi_change = 0;
+
+  // UP event
+  ifi->ifi_flags = IFF_UP | IFF_RUNNING;
+  assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
+  nlmon_test_msg_t msg = {.buf = buf, .len = nh->nlmsg_len};
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, filters, 2);
+  assert(cb1_called == 1 && cb2_called == 0);
+
+  // DOWN event
+  ifi->ifi_flags = 0;
+  assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
+  msg.buf = buf;
+  msg.len = nh->nlmsg_len;
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, filters, 2);
+  assert(cb1_called == 1 && cb2_called == 1);
 
   deinit_netlink_monitor(fd);
   PRINT_TEST_PASSED();
@@ -146,6 +236,7 @@ int main(void) {
   test_deinit_netlink_monitor();
   test_nl_handler_cb();
   test_nl_handler_cb_invalid_ifname();
+  test_nl_handler_cb_multiple_filters();
 
   printf(KGRN "====== All nlmon tests passed! ======\n" KNRM);
   return 0;
