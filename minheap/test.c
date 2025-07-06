@@ -1,4 +1,5 @@
-#include "../syslog.h"
+#include "../syslog2/syslog2.h"
+#include "../timeutil/timeutil.h"
 
 #include "heap-inl.h"
 #include "minheap.h"
@@ -57,9 +58,9 @@ typedef struct {
 
 static uint64_t get_current_time_ms(void) {
   struct timespec ts;
-  int ret = clock_gettime_fast(&ts, true);
+  int ret = tu_clock_gettime_monotonic_fast(&ts);
   if (ret != 0) {
-    syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
+    syslog2(LOG_INFO, "tu_clock_gettime_monotonic_fast failed: ret=%d", ret);
     return 0U;
   }
   return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
@@ -109,16 +110,16 @@ void test_create_malloc_fail() {
 #ifdef TESTRUN
   PRINT_TEST_START("Create heap with malloc failure (negative case)");
   SET_MALLOC(NULL);
-  minheap_t *heap = minheap_create(10);
-  assert(heap == NULL && "minheap_create should fail if malloc fails");
+  minheap_t *heap = mh_create(10);
+  assert(heap == NULL && "mh_create should fail if malloc fails");
   UNSET_MALLOC;
 
   PRINT_TEST_INFO("test if malloc fail on second call");
   mcount = 0;
   SET_MALLOC(test_malloc_fail_second);
-  heap = minheap_create(10);
+  heap = mh_create(10);
   UNSET_MALLOC;
-  assert(heap == NULL && "minheap_create should fail if malloc fail on second call");
+  assert(heap == NULL && "mh_create should fail if malloc fail on second call");
 
   PRINT_TEST_PASSED();
 #endif
@@ -464,7 +465,7 @@ void test_stress_random_operations() {
 // --- Вспомогательная функция для измерения времени ---
 uint64_t get_time_usec() {
   struct timespec ts;
-  clock_gettime_fast(&ts, false);
+  tu_clock_gettime_monotonic_fast(&ts);
   return (uint64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 

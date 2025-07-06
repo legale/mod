@@ -5,11 +5,11 @@ AR = ar
 ARFLAGS = rcs
 LIBNAME = libminheap.a
 OBJ = minheap.o
-TEST_OBJ = test.o ../syslog.o
+TEST_OBJ = test.o
 MAIN_OBJ = main.o 
 
-LDFLAGS = -L. 
-LIBS = -lminheap 
+LDFLAGS = -L. -L../syslog2 -L../timeutil
+LIBS = -lminheap -lsyslog2 -ltimeutil
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -29,7 +29,11 @@ ifeq ($(MAKECMDGOALS),coverage)
   COV_CFLAGS += -DTESTRUN=1  
 endif
 
-all: $(LIBNAME) main test
+all: dependencies $(LIBNAME) main test
+
+dependencies:
+	$(MAKE) -C ../timeutil
+	$(MAKE) -C ../syslog2
 
 
 $(LIBNAME): $(OBJ)
@@ -56,9 +60,6 @@ main.o: main.c minheap.h
 test.o: test.c minheap.h
 	$(CC) $(CFLAGS) -c test.c
 
-../syslog.o: ../syslog.c ../syslog.h
-	$(CC) $(CFLAGS) -c ../syslog.c -o ../syslog.o
-
 perf: test
 	@echo "Running valgrind callgrind profiler..."
 	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./test
@@ -74,6 +75,8 @@ clean:
 
 # ------------------ coverage ------------------
 coverage: clean
+	$(MAKE) -C ../timeutil
+	$(MAKE) -C ../syslog2
 	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
 	@echo "=== Coverage report (gcov): ==="
 	@gcov minheap.c | grep -A10 "File 'minheap.c'"
@@ -81,4 +84,4 @@ coverage: clean
 	@gcov -b minheap.c | grep -E 'Lines executed|Branches executed'
 
 
-.PHONY: all clean perf leak
+.PHONY: all clean perf leak coverage test main dependencies
