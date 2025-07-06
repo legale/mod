@@ -23,6 +23,9 @@ LDFLAGS_TEST = -ltsan
 LDFLAGS = -lpthread
 PERF_LDFLAGS = $(LDFLAGS) -levent -luv
 
+COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
+COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+
 # Имена целей
 MAIN = main_bin
 TEST_BIN = test_bin
@@ -110,4 +113,11 @@ $(LIB): $(OBJS)
 clean:
 	rm -f $(MAIN) $(TEST_BIN) $(ROBUST_TEST_BIN) $(PERF) $(LIB) callgrind.out *.o ../syslog2/*.o ../timeutil/*.o ../minheap/*.o ../*.o
 
-.PHONY: all test robust_test check clean
+coverage: clean
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" test
+	@echo "=== Coverage report (gcov): ==="
+	@gcov uevent.c | grep -A10 "File 'uevent.c'"
+	@echo "=== Coverage report (summary): ==="
+	@gcov -b uevent.c | grep -E 'Lines executed|Branches executed'
+
+.PHONY: all test robust_test check clean coverage
