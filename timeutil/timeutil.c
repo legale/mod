@@ -121,3 +121,20 @@ void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src) {
   atomic_ts_load(src, &tmp);
   atomic_ts_store(dest, &tmp);
 }
+
+time_t tu_get_timezone_offset(void) {
+  time_t now = time(NULL);
+  struct tm local_tm;
+  struct tm gm_tm;
+
+  if (now == (time_t)-1)
+    return 0;
+
+  localtime_r(&now, &local_tm);
+  gmtime_r(&now, &gm_tm);
+
+  time_t local_sec = mktime(&local_tm);
+  time_t gm_sec = mktime(&gm_tm);
+
+  return local_sec - gm_sec;
+}
