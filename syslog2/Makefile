@@ -16,7 +16,7 @@ dependencies:
 	$(MAKE) -C ../timeutil LIBS="-ltimeutil"
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
-COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage -lgcov
 
 ifeq ($(DEBUG),1)
   CFLAGS += -O0 -DDEBUG=1 -g
