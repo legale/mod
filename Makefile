@@ -16,10 +16,17 @@ test:
 
 # Run coverage where supported
 coverage:
-	@set -e; for d in $(COV_DIRS); do \
-		printf '\n==> $$d (coverage)\n'; \
-		$(MAKE) -C $$d coverage; \
-	done
+	@fail=""; \
+	for d in $(COV_DIRS); do \
+	printf '\n==> $$d (coverage)\n'; \
+	if ! $(MAKE) -C $$d coverage; then \
+	fail="$$fail $$d"; \
+	fi; \
+	done; \
+	if [ -n "$$fail" ]; then \
+	echo "Coverage failed in modules:" $$fail; \
+	exit 1; \
+	fi
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
