@@ -146,6 +146,39 @@ static void test_pause_resume(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_atomic_ts_ops(void) {
+  PRINT_TEST_START("atomic_ts operations");
+
+  atomic_timespec_t src = {.tv_sec = 0, .tv_nsec = 0};
+  atomic_timespec_t dest = {.tv_sec = 0, .tv_nsec = 0};
+  struct timespec ts, out;
+
+  ts.tv_sec = 42;
+  ts.tv_nsec = 123456789;
+
+  atomic_ts_store(&src, &ts);
+  ts.tv_sec = 0;
+  ts.tv_nsec = 0;
+
+  atomic_ts_load(&src, &out);
+  assert(out.tv_sec == 42 && out.tv_nsec == 123456789);
+
+  atomic_ts_cpy(&dest, &src);
+  out.tv_sec = 0;
+  out.tv_nsec = 0;
+  atomic_ts_load(&dest, &out);
+  assert(out.tv_sec == 42 && out.tv_nsec == 123456789);
+
+  ts.tv_sec = 7;
+  ts.tv_nsec = 987654321;
+  atomic_ts_store(&src, &ts);
+  atomic_ts_cpy(&dest, &src);
+  atomic_ts_load(&dest, &out);
+  assert(out.tv_sec == 7 && out.tv_nsec == 987654321);
+
+  PRINT_TEST_PASSED();
+}
+
 int main(void) {
   tu_init();
 
@@ -153,6 +186,7 @@ int main(void) {
   test_tu_clock_realtime_fast();
   test_tu_clock_monotonic_fast();
   test_pause_resume();
+  test_atomic_ts_ops();
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
   return 0;
