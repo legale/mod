@@ -128,6 +128,8 @@ void test_worker_pool_stop_wait() {
   uevent_worker_pool_t *pool = uevent_worker_pool_create(1);
   assert(pool != NULL);
 
+  uevent_worker_pool_enable_extra_workers(false);
+
   uevent_base_t *base = uevent_base_new_with_workers(8, 0);
   assert(base != NULL);
 
@@ -161,7 +163,9 @@ void test_worker_pool_stop_wait() {
   uevent_worker_pool_insert(pool, uev1, UEV_TIMEOUT, now);
   uevent_worker_pool_insert(pool, uev2, UEV_TIMEOUT, now);
 
-  msleep(10);
+  // Give the worker thread enough time to start executing the first task
+  // but not enough to finish it, ensuring the second task remains queued
+  msleep(50);
   uevent_worker_pool_stop(pool);
   uevent_worker_pool_wait_for_idle(pool);
 
@@ -171,6 +175,7 @@ void test_worker_pool_stop_wait() {
   uevent_free(uev2);
   uevent_deinit(base);
   uevent_worker_pool_destroy(pool);
+  uevent_worker_pool_enable_extra_workers(true);
   PRINT_TEST_PASSED();
 }
 
