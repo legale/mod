@@ -27,6 +27,8 @@ static bool fail_clock_gettime = false;
 static struct timespec *fake_times = NULL;
 static int fake_times_len = 0;
 static int fake_times_pos = 0;
+static bool fail_nanosleep = false;
+static bool fail_time_call = false;
 
 void set_clock_gettime_fail(int enable) { fail_clock_gettime = enable; }
 void set_clock_gettime_sequence(struct timespec *seq, int len) {
@@ -41,6 +43,9 @@ void reset_clock_gettime_sequence(void) {
   fail_clock_gettime = false;
 }
 
+void set_nanosleep_fail(int enable) { fail_nanosleep = enable; }
+void set_time_fail(int enable) { fail_time_call = enable; }
+
 int clock_gettime(clockid_t clk_id, struct timespec *tp) {
   if (fail_clock_gettime) {
     errno = EINVAL;
@@ -51,6 +56,26 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp) {
     return 0;
   }
   return syscall(SYS_clock_gettime, clk_id, tp);
+}
+
+int nanosleep(const struct timespec *req, struct timespec *rem) {
+  if (fail_nanosleep) {
+    if (rem) {
+      *rem = *req;
+    }
+    errno = EINTR;
+    return -1;
+  }
+  return syscall(SYS_nanosleep, req, rem);
+}
+
+time_t time(time_t *tloc) {
+  if (fail_time_call) {
+    if (tloc)
+      *tloc = (time_t)-1;
+    return (time_t)-1;
+  }
+  return syscall(SYS_time, tloc);
 }
 #endif
 
@@ -74,6 +99,18 @@ static void test_msleep_accuracy(void) {
     assert(elapsed_ms >= delay);
   }
 
+  PRINT_TEST_PASSED();
+}
+
+static void test_msleep_failure(void) {
+  PRINT_TEST_START("msleep failure path");
+#ifdef TESTRUN
+  set_nanosleep_fail(1);
+  errno = 0;
+  assert(msleep(10) == -1);
+  assert(errno == EINTR);
+  set_nanosleep_fail(0);
+#endif
   PRINT_TEST_PASSED();
 }
 
@@ -286,10 +323,24 @@ static void test_timezone_offset(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_timezone_offset_fail(void) {
+  PRINT_TEST_START("tu_get_timezone_offset failure branch");
+#ifdef TESTRUN
+  set_time_fail(1);
+  time_t off = tu_get_timezone_offset();
+  assert(off == 0);
+  set_time_fail(0);
+#else
+  (void)tu_get_timezone_offset();
+#endif
+  PRINT_TEST_PASSED();
+}
+
 int main(void) {
   tu_init();
 
   test_msleep_accuracy();
+  test_msleep_failure();
   test_tu_clock_realtime_fast();
   test_tu_clock_monotonic_fast();
   test_clock_gettime_failure();
@@ -298,6 +349,7 @@ int main(void) {
   test_monotonic_negative_and_realtime_overflow();
   test_atomic_ts_ops();
   test_timezone_offset();
+  test_timezone_offset_fail();
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
   return 0;
