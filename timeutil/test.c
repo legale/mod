@@ -2,6 +2,12 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <time.h>
+#ifdef TESTRUN
+#include <errno.h>
+#include <stdbool.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 
 #include "timeutil.h"
 
@@ -15,6 +21,38 @@
 #define PRINT_TEST_PASSED() printf(KGRN "--- Test Passed ---\n\n" KNRM)
 #define PRINT_TEST_INFO(fmt, ...) \
   printf(KYEL "%s:%d [INFO] " fmt "\n" KNRM, __FILE__, __LINE__, ##__VA_ARGS__)
+
+#ifdef TESTRUN
+static bool fail_clock_gettime = false;
+static struct timespec *fake_times = NULL;
+static int fake_times_len = 0;
+static int fake_times_pos = 0;
+
+void set_clock_gettime_fail(int enable) { fail_clock_gettime = enable; }
+void set_clock_gettime_sequence(struct timespec *seq, int len) {
+  fake_times = seq;
+  fake_times_len = len;
+  fake_times_pos = 0;
+}
+void reset_clock_gettime_sequence(void) {
+  fake_times = NULL;
+  fake_times_len = 0;
+  fake_times_pos = 0;
+  fail_clock_gettime = false;
+}
+
+int clock_gettime(clockid_t clk_id, struct timespec *tp) {
+  if (fail_clock_gettime) {
+    errno = EINVAL;
+    return -1;
+  }
+  if (fake_times && fake_times_pos < fake_times_len) {
+    *tp = fake_times[fake_times_pos++];
+    return 0;
+  }
+  return syscall(SYS_clock_gettime, clk_id, tp);
+}
+#endif
 
 static void test_msleep_accuracy(void) {
   PRINT_TEST_START("msleep accuracy");
@@ -146,6 +184,63 @@ static void test_pause_resume(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_clock_gettime_failure(void) {
+  PRINT_TEST_START("tu_clock_gettime failure paths");
+#ifdef TESTRUN
+  struct timespec ts;
+  set_clock_gettime_fail(1);
+  assert(tu_clock_gettime_monotonic_fast(&ts) != 0);
+  assert(tu_clock_gettime_realtime_fast(&ts) != 0);
+  assert(tu_clock_gettime_monotonic_fast_ms() == 0);
+  set_clock_gettime_fail(0);
+#endif
+  PRINT_TEST_PASSED();
+}
+
+static void test_pause_branches(void) {
+  PRINT_TEST_START("pause_start/pause_end branch coverage");
+#ifdef TESTRUN
+  struct timespec seq[] = {
+      {0, 900000000}, {1, 100000000}, // first pause diff=200ms (sub branch)
+      {1, 200000000}, {2, 100000000}  // second pause diff=900ms (sub branch + add overflow)
+  };
+  set_clock_gettime_sequence(seq, 4);
+#endif
+  tu_pause_start();       // uses seq[0]
+  tu_pause_start();       // already active
+  tu_pause_end();         // uses seq[1]
+  tu_pause_start();       // uses seq[2]
+  tu_pause_end();         // uses seq[3]
+  tu_pause_end();         // no-op when not active
+#ifdef TESTRUN
+  reset_clock_gettime_sequence();
+#endif
+  PRINT_TEST_PASSED();
+}
+
+static void test_monotonic_negative_and_realtime_overflow(void) {
+  PRINT_TEST_START("monotonic negative and realtime overflow");
+#ifdef TESTRUN
+  struct timespec seq_off[] = {{5, 500000000}, {4, 700000000}}; // realtime then monotonic
+  set_clock_gettime_sequence(seq_off, 2);
+#endif
+  tu_update_offset();
+#ifdef TESTRUN
+  reset_clock_gettime_sequence();
+  struct timespec seq_calls[] = {{11, 50000000}, {12, 600000000}, {13, 0}};
+  set_clock_gettime_sequence(seq_calls, 3);
+#endif
+  struct timespec ts;
+  assert(tu_clock_gettime_monotonic_fast(&ts) == 0);
+  assert(tu_clock_gettime_realtime_fast(&ts) == 0);
+  uint64_t ms = tu_clock_gettime_monotonic_fast_ms();
+#ifdef TESTRUN
+  reset_clock_gettime_sequence();
+#endif
+  assert(ms > 0);
+  PRINT_TEST_PASSED();
+}
+
 static void test_atomic_ts_ops(void) {
   PRINT_TEST_START("atomic_ts operations");
 
@@ -185,7 +280,10 @@ int main(void) {
   test_msleep_accuracy();
   test_tu_clock_realtime_fast();
   test_tu_clock_monotonic_fast();
+  test_clock_gettime_failure();
   test_pause_resume();
+  test_pause_branches();
+  test_monotonic_negative_and_realtime_overflow();
   test_atomic_ts_ops();
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
