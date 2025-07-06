@@ -29,6 +29,21 @@ static void tu_pause_end_wrapper(void) {
   PRINT_INFO("tu_pause_end called");
 }
 
+static void link_event_cb(const char *ifname, uint32_t events, void *arg) {
+  (void)ifname;
+  nl_cb_arg_t *cb_arg = arg;
+  if (!cb_arg) {
+    return;
+  }
+  if (events & NLMON_EVENT_LINK_UP) {
+    cb_arg->tu_pause_end();
+  } else if (events & NLMON_EVENT_LINK_DOWN) {
+    if (cb_arg->tu_pause_start) {
+      cb_arg->tu_pause_start();
+    }
+  }
+}
+
 // Обработчик SIGINT (Ctrl+C)
 static void sigint_handler(int sig) {
   (void)sig;
@@ -48,9 +63,14 @@ int main(void) {
   nl_cb_arg_t cb_arg = {
       .ifname = ifname,
       .tu_pause_start = tu_pause_start_wrapper,
-      .tu_pause_end = tu_pause_end_wrapper
+      .tu_pause_end = tu_pause_end_wrapper};
 
-  };
+  const char *ifnames[] = {ifname, NULL};
+  nlmon_filter_t filter = {
+      .ifnames = ifname ? ifnames : NULL,
+      .events = NLMON_EVENT_LINK_UP | NLMON_EVENT_LINK_DOWN,
+      .cb = link_event_cb,
+      .arg = &cb_arg};
 
   // Инициализация Netlink-мониторинга
   int fd = init_netlink_monitor();
@@ -106,7 +126,7 @@ int main(void) {
     }
     for (int i = 0; i < nfds; i++) {
       if (events[i].data.fd == fd) {
-        nl_handler_cb(NULL, fd, EPOLLIN, &cb_arg);
+        nl_handler_cb(NULL, fd, EPOLLIN, &filter, 1);
       }
     }
   }

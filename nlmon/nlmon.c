@@ -59,16 +59,30 @@ void deinit_netlink_monitor(int fd) {
 }
 
 // Callback для обработки Netlink-событий
-void nl_handler_cb(uevent_t *ev, int fd, short events, void *arg) {
+void nl_handler_cb(uevent_t *ev, int fd, short events, nlmon_filter_t *filters,
+                   size_t filter_cnt) {
   FUNC_START_DEBUG;
-  nl_cb_arg_t *cb_arg = (nl_cb_arg_t *)arg;
-  if (!cb_arg || !cb_arg->tu_pause_end) {
+  if (!filters || filter_cnt == 0) {
     syslog2(LOG_ERR, "error: EINVAL");
     return;
   }
 
   char buf[DEFROUTE_BUF_SIZE];
-  int len = recv(fd, buf, sizeof(buf), 0);
+  int len = 0;
+#ifdef TESTRUN
+  if (ev) {
+    struct nlmon_test_msg {
+      char *buf;
+      size_t len;
+    } *msg = (struct nlmon_test_msg *)ev;
+    if (msg->buf) {
+      len = (int)((msg->len > sizeof(buf)) ? sizeof(buf) : msg->len);
+      memcpy(buf, msg->buf, len);
+    }
+  }
+  if (len == 0)
+#endif
+    len = recv(fd, buf, sizeof(buf), 0);
   if (len < 0) {
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
       syslog2(LOG_ERR, "recv failed: %s", strerror(errno));
@@ -76,37 +90,47 @@ void nl_handler_cb(uevent_t *ev, int fd, short events, void *arg) {
     return;
   }
 
-  unsigned int ifindex = 0;
-  const char *ifname = NULL;
-  char ifnamebuf[IF_NAMESIZE] = {0};
-  if (cb_arg->ifname) {
-    ifindex = if_nametoindex(cb_arg->ifname);
-    if (ifindex == 0) {
-      syslog2(LOG_ERR, "invalid ifname=%s: %s", cb_arg->ifname, strerror(errno));
-      return;
-    }
-	ifname = cb_arg->ifname;
-  }
-
-  for (struct nlmsghdr *nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
+  char ifnamebuf[IF_NAMESIZE];
+  for (struct nlmsghdr *nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len);
+       nh = NLMSG_NEXT(nh, len)) {
     if (nh->nlmsg_type != RTM_NEWLINK) {
       continue;
     }
 
     struct ifinfomsg *ifi = (struct ifinfomsg *)NLMSG_DATA(nh);
-    if (cb_arg->ifname && ifi->ifi_index != (int)ifindex) {
+    const char *ifname = if_indextoname(ifi->ifi_index, ifnamebuf);
+    if (!ifname) {
       continue;
     }
 
-	if(ifindex == 0){
-		ifname = if_indextoname(ifi->ifi_index, ifnamebuf);
-	}
+    uint32_t ev_mask =
+        (ifi->ifi_flags & IFF_UP && ifi->ifi_flags & IFF_RUNNING)
+            ? NLMON_EVENT_LINK_UP
+            : NLMON_EVENT_LINK_DOWN;
 
-    if (ifi->ifi_flags & IFF_UP && ifi->ifi_flags & IFF_RUNNING) {
-      syslog2(LOG_NOTICE, "idx=%d ifname=%s is UP and RUNNING", ifi->ifi_index, ifname);
-      cb_arg->tu_pause_end(); // Снимаем паузу при восстановлении интерфейса
-    } else {
-      syslog2(LOG_NOTICE, "idx=%d ifname=%s is DOWN flags=0x%x", ifi->ifi_index, ifname, ifi->ifi_flags);
+    for (size_t i = 0; i < filter_cnt; ++i) {
+      nlmon_filter_t *f = &filters[i];
+      if (!(f->events & ev_mask)) {
+        continue;
+      }
+
+      bool match = true;
+      if (f->ifnames) {
+        match = false;
+        for (const char **n = f->ifnames; *n; ++n) {
+          if (strcmp(*n, ifname) == 0) {
+            match = true;
+            break;
+          }
+        }
+      }
+      if (!match) {
+        continue;
+      }
+
+      if (f->cb) {
+        f->cb(ifname, ev_mask, f->arg);
+      }
     }
   }
 }
