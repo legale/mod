@@ -71,6 +71,7 @@ int main(void) {
       .events = NLMON_EVENT_LINK_UP | NLMON_EVENT_LINK_DOWN,
       .cb = link_event_cb,
       .arg = &cb_arg};
+  nlmon_install_filters(&filter, 1);
 
   // Инициализация Netlink-мониторинга
   int fd = init_netlink_monitor();
@@ -126,7 +127,7 @@ int main(void) {
     }
     for (int i = 0; i < nfds; i++) {
       if (events[i].data.fd == fd) {
-        nl_handler_cb(NULL, fd, EPOLLIN, &filter, 1);
+        nl_handler_cb(NULL, fd, EPOLLIN);
       }
     }
   }
@@ -135,6 +136,7 @@ int main(void) {
   PRINT_INFO("Cleaning up...");
   close(epoll_fd);
   deinit_netlink_monitor(fd);
+  nlmon_clear_filters();
 
   printf("====== Netlink monitor demo completed! ======\n");
   return 0;
