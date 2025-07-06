@@ -12,6 +12,9 @@ MAIN_OBJ = $(MAIN_SRCS:.c=.o)
 LDFLAGS = -L. -L../timeutil
 LIBS = -lsyslog2 -ltimeutil
 
+dependencies:
+	$(MAKE) -C ../timeutil LIBS="-ltimeutil"
+
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
 
@@ -30,7 +33,7 @@ ifeq ($(MAKECMDGOALS),coverage)
   COV_CFLAGS += -DTESTRUN=1
 endif
 
-all: $(LIBNAME) test $(if $(MAIN_OBJ), main)
+all: dependencies $(LIBNAME) test $(if $(MAIN_OBJ), main)
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
@@ -38,7 +41,7 @@ $(LIBNAME): $(OBJ)
 %.o: %.c syslog2.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test: $(TEST_OBJ) $(LIBNAME)
+test: dependencies $(TEST_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	./test
 
@@ -59,11 +62,11 @@ leak: test
 clean:
 	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) test main callgrind.out
 
-coverage: clean
+coverage: clean dependencies
 	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
 	@echo "=== Coverage report (gcov): ==="
 	@gcov syslog2.c | grep -A10 "File 'syslog2.c'"
 	@echo "=== Coverage report (summary): ==="
 	@gcov -b syslog2.c | grep -E 'Lines executed|Branches executed'
 
-.PHONY: all clean perf leak coverage test main
+.PHONY: all clean perf leak coverage test main dependencies
