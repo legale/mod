@@ -65,6 +65,17 @@ static void cb2(const char *ifname, uint32_t events, void *arg) {
   cb2_called++;
 }
 
+static int multi_up = 0;
+static int multi_down = 0;
+static void multi_cb(const char *ifname, uint32_t events, void *arg) {
+  (void)ifname;
+  (void)arg;
+  if (events & NLMON_EVENT_LINK_UP)
+    multi_up++;
+  if (events & NLMON_EVENT_LINK_DOWN)
+    multi_down++;
+}
+
 // Тест инициализации Netlink-сокета
 static void test_init_netlink_monitor(void) {
   PRINT_TEST_START("init_netlink_monitor");
@@ -115,6 +126,7 @@ static void test_nl_handler_cb(void) {
       .events = NLMON_EVENT_LINK_UP,
       .cb = filter_cb,
       .arg = &cb_arg};
+  nlmon_install_filters(&filter, 1);
 
   // Создаём Netlink-сокет
   int fd = init_netlink_monitor();
@@ -143,10 +155,11 @@ static void test_nl_handler_cb(void) {
 
   nlmon_test_msg_t msg = {.buf = buf, .len = nh->nlmsg_len};
   // Вызываем callback
-  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, &filter, 1);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
   assert(pause_end_called == 1); // Проверяем, что tu_pause_end был вызван
 
   deinit_netlink_monitor(fd);
+  nlmon_clear_filters();
   PRINT_TEST_PASSED();
 }
 
@@ -172,10 +185,11 @@ static void test_nl_handler_cb_invalid_ifname(void) {
 
   nlmon_test_msg_t msg = {.buf = NULL, .len = 0};
   // Вызываем callback с некорректным ifname
-  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, &filter, 1);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
   assert(pause_end_called == 0); // tu_pause_end не должен быть вызван
 
   deinit_netlink_monitor(fd);
+  nlmon_clear_filters();
   PRINT_TEST_PASSED();
 }
 
@@ -187,6 +201,7 @@ static void test_nl_handler_cb_multiple_filters(void) {
   nlmon_filter_t filters[2] = {
       {.ifnames = names, .events = NLMON_EVENT_LINK_UP, .cb = cb1, .arg = NULL},
       {.ifnames = NULL, .events = NLMON_EVENT_LINK_DOWN, .cb = cb2, .arg = NULL}};
+  nlmon_install_filters(filters, 2);
 
   uevent_t ev = {.dummy = 0};
   cb1_called = cb2_called = 0;
@@ -214,7 +229,7 @@ static void test_nl_handler_cb_multiple_filters(void) {
   ifi->ifi_flags = IFF_UP | IFF_RUNNING;
   assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
   nlmon_test_msg_t msg = {.buf = buf, .len = nh->nlmsg_len};
-  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, filters, 2);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
   assert(cb1_called == 1 && cb2_called == 0);
 
   // DOWN event
@@ -222,10 +237,63 @@ static void test_nl_handler_cb_multiple_filters(void) {
   assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
   msg.buf = buf;
   msg.len = nh->nlmsg_len;
-  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN, filters, 2);
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
   assert(cb1_called == 1 && cb2_called == 1);
 
   deinit_netlink_monitor(fd);
+  nlmon_clear_filters();
+  PRINT_TEST_PASSED();
+}
+
+static void test_nl_handler_cb_multi_ifnames_events(void) {
+  PRINT_TEST_START("nl_handler_cb_multi_ifnames_events");
+
+  const char *names[] = {"lo", "eth0", NULL};
+  nlmon_filter_t filter = {
+      .ifnames = names,
+      .events = NLMON_EVENT_LINK_UP | NLMON_EVENT_LINK_DOWN,
+      .cb = multi_cb,
+      .arg = NULL};
+  multi_up = multi_down = 0;
+  nlmon_install_filters(&filter, 1);
+
+  int fd = init_netlink_monitor();
+  assert(fd >= 0);
+
+  char buf[8192];
+  struct nlmsghdr *nh = (struct nlmsghdr *)buf;
+  struct ifinfomsg *ifi = (struct ifinfomsg *)(buf + NLMSG_HDRLEN);
+
+  nh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
+  nh->nlmsg_type = RTM_NEWLINK;
+  nh->nlmsg_flags = 0;
+  nh->nlmsg_seq = 0;
+  nh->nlmsg_pid = 0;
+  ifi->ifi_family = AF_UNSPEC;
+  ifi->ifi_type = 0;
+  ifi->ifi_change = 0;
+
+  unsigned int ifindex = if_nametoindex("lo");
+  assert(ifindex != 0);
+  ifi->ifi_index = ifindex;
+  ifi->ifi_flags = IFF_UP | IFF_RUNNING;
+  assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
+  nlmon_test_msg_t msg = {.buf = buf, .len = nh->nlmsg_len};
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
+
+  ifindex = if_nametoindex("eth0");
+  assert(ifindex != 0);
+  ifi->ifi_index = ifindex;
+  ifi->ifi_flags = 0;
+  assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
+  msg.buf = buf;
+  msg.len = nh->nlmsg_len;
+  nl_handler_cb((uevent_t *)&msg, fd, EPOLLIN);
+
+  assert(multi_up == 1 && multi_down == 1);
+
+  deinit_netlink_monitor(fd);
+  nlmon_clear_filters();
   PRINT_TEST_PASSED();
 }
 
@@ -237,6 +305,7 @@ int main(void) {
   test_nl_handler_cb();
   test_nl_handler_cb_invalid_ifname();
   test_nl_handler_cb_multiple_filters();
+  test_nl_handler_cb_multi_ifnames_events();
 
   printf(KGRN "====== All nlmon tests passed! ======\n" KNRM);
   return 0;

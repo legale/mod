@@ -8,6 +8,7 @@
 #include <net/if.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/socket.h>
 #include <syslog.h>
 #include <unistd.h>
@@ -58,30 +59,51 @@ void deinit_netlink_monitor(int fd) {
   }
 }
 
-// Callback для обработки Netlink-событий
-void nl_handler_cb(uevent_t *ev, int fd, short events, nlmon_filter_t *filters,
-                   size_t filter_cnt) {
+static nlmon_filter_t *g_filters = NULL;
+static size_t g_filter_cnt = 0;
+
+int nlmon_install_filters(const nlmon_filter_t *filters, size_t filter_cnt) {
   FUNC_START_DEBUG;
+  free(g_filters);
+  g_filters = NULL;
+  g_filter_cnt = 0;
   if (!filters || filter_cnt == 0) {
-    syslog2(LOG_ERR, "error: EINVAL");
+    return 0;
+  }
+  g_filters = calloc(filter_cnt, sizeof(nlmon_filter_t));
+  if (!g_filters) {
+    return -ENOMEM;
+  }
+  memcpy(g_filters, filters, filter_cnt * sizeof(nlmon_filter_t));
+  g_filter_cnt = filter_cnt;
+  return 0;
+}
+
+void nlmon_clear_filters(void) {
+  FUNC_START_DEBUG;
+  free(g_filters);
+  g_filters = NULL;
+  g_filter_cnt = 0;
+}
+
+// Callback для обработки Netlink-событий
+void nl_handler_cb(uevent_t *ev, int fd, short events) {
+  FUNC_START_DEBUG;
+  if (!g_filters || g_filter_cnt == 0) {
+    syslog2(LOG_ERR, "error: no filters installed");
     return;
   }
 
   char buf[DEFROUTE_BUF_SIZE];
   int len = 0;
-#ifdef TESTRUN
   if (ev) {
-    struct nlmon_test_msg {
-      char *buf;
-      size_t len;
-    } *msg = (struct nlmon_test_msg *)ev;
+    nlmon_test_msg_t *msg = (nlmon_test_msg_t *)ev;
     if (msg->buf) {
       len = (int)((msg->len > sizeof(buf)) ? sizeof(buf) : msg->len);
       memcpy(buf, msg->buf, len);
     }
   }
   if (len == 0)
-#endif
     len = recv(fd, buf, sizeof(buf), 0);
   if (len < 0) {
     if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -108,8 +130,8 @@ void nl_handler_cb(uevent_t *ev, int fd, short events, nlmon_filter_t *filters,
             ? NLMON_EVENT_LINK_UP
             : NLMON_EVENT_LINK_DOWN;
 
-    for (size_t i = 0; i < filter_cnt; ++i) {
-      nlmon_filter_t *f = &filters[i];
+    for (size_t i = 0; i < g_filter_cnt; ++i) {
+      nlmon_filter_t *f = &g_filters[i];
       if (!(f->events & ev_mask)) {
         continue;
       }

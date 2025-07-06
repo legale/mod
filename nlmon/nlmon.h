@@ -24,12 +24,13 @@ typedef struct {
     void *arg;
 } nlmon_filter_t;
 
-#ifdef TESTRUN
 typedef struct nlmon_test_msg {
   char *buf;
   size_t len;
 } nlmon_test_msg_t;
-#endif
+
+int nlmon_install_filters(const nlmon_filter_t *filters, size_t filter_cnt);
+void nlmon_clear_filters(void);
 
 #define NLMON_EVENT_LINK_UP 0x1
 #define NLMON_EVENT_LINK_DOWN 0x2
@@ -41,7 +42,6 @@ int init_netlink_monitor();
 void deinit_netlink_monitor(int fd);
 
 // Callback для обработки Netlink-событий
-void nl_handler_cb(uevent_t *ev, int fd, short events, nlmon_filter_t *filters,
-                   size_t filter_cnt);
+void nl_handler_cb(uevent_t *ev, int fd, short events);
 
 #endif // NL_MON_H
