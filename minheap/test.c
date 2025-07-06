@@ -277,6 +277,37 @@ void test_minheap_get_node() {
   PRINT_TEST_PASSED();
 }
 
+
+void test_mh_map_functions() {
+  PRINT_TEST_START("mh_map_set/get/del basic and edge cases");
+  minheap_t dummy;
+  minheap_node_t node = {.key = 0, .idx = 0};
+
+  /* normal usage */
+  mh_map_set(&dummy, &node, 3);
+  assert(node.idx == 4 && "mh_map_set should store idx+1");
+  assert(mh_map_get(&dummy, &node) == 3 && "mh_map_get should return index");
+  mh_map_del(&dummy, &node);
+  assert(node.idx == 0 && "mh_map_del should reset index");
+  assert(mh_map_get(&dummy, &node) == -1 && "mh_map_get should return -1 after del");
+
+  /* NULL node */
+  PRINT_TEST_INFO("NULL node handling");
+  mh_map_set(&dummy, NULL, 1);
+  mh_map_del(&dummy, NULL);
+  assert(mh_map_get(&dummy, NULL) == -1 && "mh_map_get NULL node should return -1");
+
+  /* NULL heap pointer */
+  PRINT_TEST_INFO("NULL heap pointer handling");
+  mh_map_set(NULL, &node, 5);
+  assert(node.idx == 6 && "mh_map_set should work with NULL heap");
+  assert(mh_map_get(NULL, &node) == 5 && "mh_map_get should work with NULL heap");
+  mh_map_del(NULL, &node);
+  assert(node.idx == 0 && "mh_map_del should reset index with NULL heap");
+
+  PRINT_TEST_PASSED();
+}
+
 /**
  * Принцип 1, 5: Тест на извлечение элементов в правильном порядке.
  */
@@ -653,6 +684,7 @@ int main(void) {
 
   test_create_and_free();
   test_minheap_get_node();
+  test_mh_map_functions();
   test_create_malloc_fail();
   test_insert_null_heap();
   test_insert_null_node();
