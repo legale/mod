@@ -1,3 +1,4 @@
+.DEFAULT_GOAL := all
 CC = gcc
 CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb -I../timeutil
 AR = ar
