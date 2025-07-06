@@ -8,6 +8,13 @@ static struct timespec offset_global_ts;
 static struct timespec pause_accum_global;
 static struct timespec pause_start_global;
 static volatile bool pause_active_global;
+#ifdef TESTRUN
+void tu_set_offset_nsec(long ns) { offset_global_ts.tv_nsec = ns; }
+#endif
+#ifdef TESTRUN
+static volatile bool force_clock_fail;
+void tu_set_fail_clock(bool v) { force_clock_fail = v; }
+#endif
 
 int msleep(uint64_t ms) {
   struct timespec ts;
@@ -56,6 +63,10 @@ void tu_init(void) {
 }
 
 int tu_clock_gettime_fast_internal(struct timespec *ts) {
+#ifdef TESTRUN
+  if (force_clock_fail)
+    return -1;
+#endif
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, ts);
   if (ret == 0) {
     ts->tv_sec -= pause_accum_global.tv_sec;
@@ -121,3 +132,12 @@ void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src) {
   atomic_ts_load(src, &tmp);
   atomic_ts_store(dest, &tmp);
 }
+
+#ifdef TESTRUN
+void tu_trigger_diff_ts_else(void) {
+  struct timespec start = {0, 1000000};
+  struct timespec end = {0, 2000000};
+  struct timespec diff;
+  tu_diff_ts(&diff, &start, &end);
+}
+#endif

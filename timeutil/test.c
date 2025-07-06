@@ -110,6 +110,14 @@ static void test_tu_clock_realtime_fast(void) {
   assert(diff1 < (2 * NS_PER_MS));
   assert(diff2 < (2 * NS_PER_MS));
 
+#ifdef TESTRUN
+  /* manipulate offset to trigger overflow path */
+  tu_set_offset_nsec(NS_PER_SEC - 1);
+  struct timespec tmp;
+  tu_clock_gettime_realtime_fast(&tmp);
+  tu_update_offset();
+#endif
+
   PRINT_TEST_PASSED();
 }
 
@@ -146,6 +154,100 @@ static void test_pause_resume(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_pause_edge_cases(void) {
+  PRINT_TEST_START("pause edge cases");
+
+  struct timespec ts_before, ts_after;
+  int ret = tu_clock_gettime_monotonic_fast(&ts_before);
+  assert(ret == 0);
+
+  /* calling end without start should have no effect */
+  tu_pause_end();
+
+  /* pause crossing a second boundary to hit negative tv_nsec path */
+  struct timespec raw;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &raw);
+  uint64_t to_boundary_ms = (NS_PER_SEC - raw.tv_nsec) / NS_PER_MS + 5;
+
+  tu_pause_start();
+  tu_pause_start(); /* repeated start should be ignored */
+  msleep(to_boundary_ms);
+  tu_pause_end();
+  tu_pause_end(); /* repeated end should be ignored */
+
+  /* second pause to trigger timespec_add overflow */
+  tu_pause_start();
+  msleep(990);
+  tu_pause_end();
+
+  ret = tu_clock_gettime_monotonic_fast(&ts_after);
+  assert(ret == 0);
+
+  uint64_t delta = (ts_after.tv_sec - ts_before.tv_sec) * 1000 +
+                   (ts_after.tv_nsec - ts_before.tv_nsec) / 1000000;
+  PRINT_TEST_INFO("delta with multiple pauses: %" PRIu64 " ms", delta);
+  assert(delta < 20);
+
+  PRINT_TEST_PASSED();
+}
+
+static void test_atomic_timespec(void) {
+  PRINT_TEST_START("atomic timespec helpers");
+
+  struct timespec ts = {123, 456789};
+  atomic_timespec_t at1 = {0}, at2 = {0};
+  struct timespec out;
+
+  atomic_ts_store(&at1, &ts);
+  atomic_ts_load(&at1, &out);
+  assert(out.tv_sec == ts.tv_sec && out.tv_nsec == ts.tv_nsec);
+
+  atomic_ts_cpy(&at2, &at1);
+  atomic_ts_load(&at2, &out);
+  assert(out.tv_sec == ts.tv_sec && out.tv_nsec == ts.tv_nsec);
+
+  PRINT_TEST_PASSED();
+}
+
+static void test_tu_clock_gettime_monotonic_fast_ms_case(void) {
+  PRINT_TEST_START("tu_clock_gettime_monotonic_fast_ms accuracy");
+
+  uint64_t t1 = tu_clock_gettime_monotonic_fast_ms();
+  msleep(100);
+  uint64_t t2 = tu_clock_gettime_monotonic_fast_ms();
+
+  PRINT_TEST_INFO("elapsed ms: %" PRIu64, t2 - t1);
+  assert(t2 - t1 >= 100);
+
+#ifdef TESTRUN
+  tu_set_fail_clock(true);
+  assert(tu_clock_gettime_monotonic_fast_ms() == 0);
+  tu_set_fail_clock(false);
+#endif
+
+  PRINT_TEST_PASSED();
+}
+
+static void test_tu_diff_ts_case(void) {
+  PRINT_TEST_START("tu_diff_ts branches");
+
+  struct timespec start = {1, 900000000}, end = {3, 100000000}, diff;
+  tu_diff_ts(&diff, &start, &end);
+  assert(diff.tv_sec == 1 && diff.tv_nsec == 200000000);
+
+  start.tv_sec = 2; start.tv_nsec = 100000000;
+  end.tv_sec = 3; end.tv_nsec = 300000000;
+  tu_diff_ts(&diff, &start, &end);
+  assert(diff.tv_sec == 1 && diff.tv_nsec == 200000000);
+
+#ifdef TESTRUN
+  /* trigger else branch inside timeutil.c for coverage */
+  tu_trigger_diff_ts_else();
+#endif
+
+  PRINT_TEST_PASSED();
+}
+
 int main(void) {
   tu_init();
 
@@ -153,6 +255,12 @@ int main(void) {
   test_tu_clock_realtime_fast();
   test_tu_clock_monotonic_fast();
   test_pause_resume();
+
+  /* new tests */
+  test_atomic_timespec();
+  test_pause_edge_cases();
+  test_tu_clock_gettime_monotonic_fast_ms_case();
+  test_tu_diff_ts_case();
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
   return 0;

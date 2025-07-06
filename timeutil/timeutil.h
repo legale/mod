@@ -39,6 +39,11 @@ int msleep(uint64_t ms);
 void atomic_ts_load(atomic_timespec_t *src, struct timespec *dest);
 void atomic_ts_store(atomic_timespec_t *dest, struct timespec *src);
 void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
+#ifdef TESTRUN
+void tu_trigger_diff_ts_else(void);
+void tu_set_fail_clock(bool v);
+void tu_set_offset_nsec(long ns);
+#endif
 
 static inline int tu_clock_gettime_monotonic_fast(struct timespec *ts) {
   return tu_clock_gettime_fast_internal(ts);
