@@ -179,6 +179,18 @@ static void test_atomic_ts_ops(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_timezone_offset(void) {
+  PRINT_TEST_START("tu_get_timezone_offset");
+
+  time_t off = tu_get_timezone_offset();
+  PRINT_TEST_INFO("timezone offset: %ld", (long)off);
+
+  assert(off >= -(14 * 3600) && off <= 14 * 3600);
+  assert(off % 60 == 0);
+
+  PRINT_TEST_PASSED();
+}
+
 int main(void) {
   tu_init();
 
@@ -187,6 +199,7 @@ int main(void) {
   test_tu_clock_monotonic_fast();
   test_pause_resume();
   test_atomic_ts_ops();
+  test_timezone_offset();
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
   return 0;
