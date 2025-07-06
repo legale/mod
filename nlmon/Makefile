@@ -63,7 +63,7 @@ leak: test
 clean:
 	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) test main callgrind.out
 
-coverage: clean
+coverage: clean dependencies
 	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
 	@echo "=== Coverage report (gcov): ==="
 	@gcov nlmon.c | grep -A10 "File 'nlmon.c'"

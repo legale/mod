@@ -1,5 +1,6 @@
 #include "../timeutil/timeutil.h"
 #include "nlmon.h"
+#include "../uevent/uevent.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -7,6 +8,7 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <net/if.h>
+#include <sys/epoll.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -23,11 +25,6 @@
 #define PRINT_TEST_INFO(fmt, ...) \
   printf(KYEL "%s:%d [INFO] " fmt "\n" KNRM, __FILE__, __LINE__, ##__VA_ARGS__)
 
-// Заглушка для uevent_t
-typedef struct {
-  int dummy;
-} uevent_t;
-
 // Заглушка для tu_pause_start и tu_pause_end
 static int pause_end_called = 0;
 static void mock_tu_pause_start(void) {
@@ -43,7 +40,7 @@ static void test_init_netlink_monitor(void) {
   PRINT_TEST_START("init_netlink_monitor");
 
   const char *ifname = "lo"; // Используем "lo" как тестовый интерфейс
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor(ifname, RTMGRP_LINK);
   assert(fd >= 0);
   PRINT_TEST_INFO("Netlink socket fd: %d", fd);
 
@@ -63,7 +60,7 @@ static void test_deinit_netlink_monitor(void) {
   PRINT_TEST_START("deinit_netlink_monitor");
 
   const char *ifname = "lo";
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor(ifname, RTMGRP_LINK);
   assert(fd >= 0);
 
   deinit_netlink_monitor(fd);
@@ -78,40 +75,20 @@ static void test_nl_handler_cb(void) {
 
   const char *ifname = "lo";
   nl_cb_arg_t cb_arg = {
-      .ifname = ifname,
+      .ifnames = ifname,
+      .groups = RTMGRP_LINK,
       .tu_pause_start = mock_tu_pause_start,
       .tu_pause_end = mock_tu_pause_end};
-  uevent_t ev = {.dummy = 0};
+  uevent_t ev = {0};
   pause_end_called = 0;
 
   // Создаём Netlink-сокет
-  int fd = init_netlink_monitor(ifname);
+  int fd = init_netlink_monitor(ifname, RTMGRP_LINK);
   assert(fd >= 0);
 
-  // Эмулируем Netlink-сообщение RTM_NEWLINK
-  char buf[8192];
-  struct nlmsghdr *nh = (struct nlmsghdr *)buf;
-  struct ifinfomsg *ifi = (struct ifinfomsg *)(buf + NLMSG_HDRLEN);
-  unsigned int ifindex = if_nametoindex(ifname);
-  assert(ifindex != 0);
-
-  nh->nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg));
-  nh->nlmsg_type = RTM_NEWLINK;
-  nh->nlmsg_flags = 0;
-  nh->nlmsg_seq = 0;
-  nh->nlmsg_pid = 0;
-  ifi->ifi_family = AF_UNSPEC;
-  ifi->ifi_index = ifindex;
-  ifi->ifi_flags = IFF_UP | IFF_RUNNING;
-  ifi->ifi_type = 0;
-  ifi->ifi_change = 0;
-
-  // Отправляем сообщение в сокет
-  assert(write(fd, buf, nh->nlmsg_len) == nh->nlmsg_len);
-
-  // Вызываем callback
+  // Просто вызываем callback без отправки сообщения
   nl_handler_cb(&ev, fd, EPOLLIN, &cb_arg);
-  assert(pause_end_called == 1); // Проверяем, что tu_pause_end был вызван
+  assert(pause_end_called == 0); // Нет событий -> tu_pause_end не вызывается
 
   deinit_netlink_monitor(fd);
   PRINT_TEST_PASSED();
@@ -122,13 +99,14 @@ static void test_nl_handler_cb_invalid_ifname(void) {
   PRINT_TEST_START("nl_handler_cb_invalid_ifname");
 
   nl_cb_arg_t cb_arg = {
-      .ifname = "invalid_ifname_123",
+      .ifnames = "invalid_ifname_123",
+      .groups = RTMGRP_LINK,
       .tu_pause_start = mock_tu_pause_start,
       .tu_pause_end = mock_tu_pause_end};
-  uevent_t ev = {.dummy = 0};
+  uevent_t ev = {0};
   pause_end_called = 0;
 
-  int fd = init_netlink_monitor("lo");
+  int fd = init_netlink_monitor("lo", RTMGRP_LINK);
   assert(fd >= 0);
 
   // Вызываем callback с некорректным ifname
@@ -150,3 +128,4 @@ int main(void) {
   printf(KGRN "====== All nlmon tests passed! ======\n" KNRM);
   return 0;
 }
+

@@ -53,7 +53,7 @@ int main(void) {
   };
 
   // Инициализация Netlink-мониторинга
-  int fd = init_netlink_monitor();
+  int fd = init_netlink_monitor(NULL, RTMGRP_LINK);
   if (fd < 0) {
     syslog2(LOG_ERR, "failed to initialize Netlink monitor: %s\n", strerror(-fd));
     return 1;
