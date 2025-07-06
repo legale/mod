@@ -34,7 +34,7 @@ all: dependencies $(LIBNAME) test $(if $(MAIN_OBJ), main)
 
 dependencies:
 	$(MAKE) -C ../timeutil
-	$(MAKE) -C ../syslog2
+	$(MAKE) -C ../syslog2 all
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)

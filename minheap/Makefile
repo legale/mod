@@ -51,7 +51,7 @@ test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
 	./test
 
 ../syslog2/libsyslog2.a:
-	$(MAKE) -C ../syslog2
+	$(MAKE) -C ../syslog2 all
 
 main.o: main.c minheap.h
 	$(CC) $(CFLAGS) -c main.c 
