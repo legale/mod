@@ -16,6 +16,12 @@
 #define UEV_EXTRA_WORKER_TASKS 100
 #define UEV_MAX_WORKER_MULTIPLIER 8
 
+static _Atomic bool enable_extra_workers = true;
+
+void uevent_worker_pool_enable_extra_workers(bool enable) {
+  atomic_store(&enable_extra_workers, enable);
+}
+
 // Внутренняя структура для задачи в очереди
 typedef struct {
   uev_t *uev;
@@ -161,6 +167,9 @@ static void *uevent_extra_worker_thread(void *arg) {
 
 static void try_spawn_extra_worker(uevent_worker_pool_t *pool) {
   FUNC_START_DEBUG;
+  if (!atomic_load(&enable_extra_workers)) {
+    return;
+  }
   int max_workers = pool->num_workers * UEV_MAX_WORKER_MULTIPLIER;
   int old_total;
 

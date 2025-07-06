@@ -17,7 +17,7 @@ CFLAGS_SO = $(CFLAGS) -fPIC
 # -O1 рекомендуется для санитайзеров, чтобы не оптимизировать слишком много
 # -g обязательно для получения читаемых стектрейсов
 CFLAGS_TEST = -fsanitize=thread,undefined -g
-LDFLAGS_TEST = -ltsan
+LDFLAGS_TEST = -ltsan -lubsan
 
 # Флаги линковки
 LDFLAGS = -lpthread

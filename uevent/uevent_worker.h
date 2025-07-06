@@ -15,6 +15,9 @@ typedef struct uevent_t uevent_t;
  */
 typedef struct uevent_worker_pool_t uevent_worker_pool_t;
 
+/** Control creation of temporary extra workers. Useful for tests. */
+void uevent_worker_pool_enable_extra_workers(bool enable);
+
 /**
  * @brief Создает и запускает пул рабочих потоков.
  *
