@@ -60,7 +60,7 @@ clean:
 	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) test main callgrind.out
 
 coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
+	$(MAKE) DEBUG=1 CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
 	@echo "=== Coverage report (gcov): ==="
 	@gcov syslog2.c | grep -A10 "File 'syslog2.c'"
 	@echo "=== Coverage report (summary): ==="
