@@ -248,7 +248,8 @@ void test_multiple_events_on_fd() {
   pthread_t dispatcher;
   pthread_create(&dispatcher, NULL, dispatch_thread, base);
 
-  write(pipefd[1], "x", 1);
+  ssize_t wres = write(pipefd[1], "x", 1);
+  assert(wres == 1);
   usleep(100000);
 
   uevent_base_loopbreak(base);
@@ -441,7 +442,8 @@ void test_read_event() {
   uev_t *uev = uevent_create_or_assign_event(NULL, base, pipefd[0], UEV_READ, cb, NULL, __func__);
   assert(uev != NULL);
   assert(uevent_add(uev, 0) == 0);
-  write(pipefd[1], "test", 4);
+  ssize_t wres2 = write(pipefd[1], "test", 4);
+  assert(wres2 == 4);
   uevent_base_dispatch(base);
   assert(triggered == 1);
   close(pipefd[0]);
