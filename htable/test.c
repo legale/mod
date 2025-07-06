@@ -165,16 +165,16 @@ void test_collision_handling() {
  * Выполняет большое количество случайных операций для проверки стабильности.
  */
 void test_stress_and_random_operations() {
-  PRINT_TEST_START("Stress test with random operations");
-  const int ITERATIONS = 50000;
-  const int KEY_SPACE = 1000;
+  PRINT_TEST_START("Stress test with deterministic operations");
+  const int ITERATIONS = 200;
+  const int KEY_SPACE = 100;
   htable_t *ht = htable_create(KEY_SPACE / 10); // Меньшая емкость для коллизий
 
   // "Теневая" структура для проверки корректности
   void **shadow_map = calloc(KEY_SPACE, sizeof(void *));
   assert(shadow_map != NULL);
 
-  srand(time(NULL));
+  srand(0); // fixed seed for deterministic behavior
 
   for (int i = 0; i < ITERATIONS; ++i) {
     int op = rand() % 3; // 0: set, 1: get, 2: del

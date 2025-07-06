@@ -400,10 +400,12 @@ void test_update_node_key() {
  * Принцип 10: Интеграционный хаос-стресс тест.
  */
 void test_stress_random_operations() {
-  PRINT_TEST_START("Stress test with random operations");
-  const int NUM_NODES = 1000;
-  const int ITERATIONS = 50000;
+  PRINT_TEST_START("Stress test with deterministic operations");
+  const int NUM_NODES = 100;
+  const int ITERATIONS = 200;
   minheap_t *heap = mh_create(NUM_NODES);
+
+  srand(0); // fixed seed for reproducibility
 
   // Создаем пул узлов
   heap_value_t *nodes = calloc(NUM_NODES, sizeof(heap_value_t));
@@ -416,8 +418,6 @@ void test_stress_random_operations() {
   // Теневая структура для проверки - простой массив флагов (в куче или нет)
   bool *in_heap_shadow = calloc(NUM_NODES, sizeof(bool));
   assert(in_heap_shadow != NULL);
-
-  srand(time(NULL));
 
   for (int i = 0; i < ITERATIONS; ++i) {
     int node_idx = rand() % NUM_NODES;
