@@ -12,6 +12,9 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <errno.h>
+#include <dirent.h>
+#include <sys/syscall.h>
 
 // =============================================================================
 // МАКРОСЫ НАСТРОЕК ТЕСТОВ
@@ -37,6 +40,64 @@
 #define PRINT_TEST_PASSED() printf(KGRN "--- Test Passed ---\n\n" KNRM)
 #define PRINT_TEST_INFO(fmt, ...) \
   printf(KYEL "%s:%d [INFO] " fmt "\n" KNRM, __FILE__, __LINE__, ##__VA_ARGS__)
+
+// =============================================================================
+// WRAPPERS FOR FAILURE INJECTION
+// =============================================================================
+static int fail_calloc = 0;
+static int fail_epoll_create1 = 0;
+static int fail_eventfd = 0;
+
+static void reset_fail_hooks(void) {
+  fail_calloc = 0;
+  fail_epoll_create1 = 0;
+  fail_eventfd = 0;
+}
+
+void set_calloc_fail(int count) { fail_calloc = count; }
+void set_epoll_create1_fail(int count) { fail_epoll_create1 = count; }
+void set_eventfd_fail(int count) { fail_eventfd = count; }
+
+static void *real_calloc(size_t n, size_t sz) {
+  void *ptr = malloc(n * sz);
+  if (ptr) memset(ptr, 0, n * sz);
+  return ptr;
+}
+
+void *calloc(size_t nmemb, size_t size) {
+  if (fail_calloc > 0) {
+    fail_calloc--;
+    return NULL;
+  }
+  return real_calloc(nmemb, size);
+}
+
+int epoll_create1(int flags) {
+  if (fail_epoll_create1 > 0) {
+    fail_epoll_create1--;
+    errno = EMFILE;
+    return -1;
+  }
+  return syscall(SYS_epoll_create1, flags);
+}
+
+int eventfd(unsigned int initval, int flags) {
+  if (fail_eventfd > 0) {
+    fail_eventfd--;
+    errno = EMFILE;
+    return -1;
+  }
+  return syscall(SYS_eventfd2, initval, flags);
+}
+
+static int get_open_fd_count(void) {
+  int count = 0;
+  DIR *d = opendir("/proc/self/fd");
+  if (!d) return -1;
+  while (readdir(d) != NULL) count++;
+  closedir(d);
+  return count;
+}
 
 // =============================================================================
 // ХЕЛПЕР ДЛЯ ТЕСТИРОВАНИЯ ПАДЕНИЙ
@@ -687,6 +748,43 @@ void test_null_params() {
   assert(uevent_del(NULL) == UEV_ERR_INVAL);
   uevent_free(NULL);
   uevent_deinit(NULL);
+  PRINT_TEST_PASSED();
+}
+
+void test_base_creation_failures() {
+  PRINT_TEST_START("Base creation failure cleanup");
+
+  int before, after;
+  uevent_base_t *base;
+
+  before = get_open_fd_count();
+  set_calloc_fail(1);
+  base = uevent_base_new_with_workers(8, 0);
+  assert(base == NULL);
+  reset_fail_hooks();
+  after = get_open_fd_count();
+  assert(before == after);
+
+  before = get_open_fd_count();
+  set_epoll_create1_fail(1);
+  base = uevent_base_new_with_workers(8, 0);
+  assert(base == NULL);
+  reset_fail_hooks();
+  after = get_open_fd_count();
+  assert(before == after);
+
+  before = get_open_fd_count();
+  set_eventfd_fail(1);
+  base = uevent_base_new_with_workers(8, 0);
+  assert(base == NULL);
+  reset_fail_hooks();
+  after = get_open_fd_count();
+  assert(before == after);
+
+  base = uevent_base_new_with_workers(8, 0);
+  assert(base != NULL);
+  uevent_deinit(base);
+
   PRINT_TEST_PASSED();
 }
 
@@ -1446,6 +1544,7 @@ int main() {
   test_stress_mt();
   test_persist_event();
   test_null_params();
+  test_base_creation_failures();
   test_double_free_detection();
   test_double_add_del();
   test_fd_edge_cases();
