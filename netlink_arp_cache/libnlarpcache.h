@@ -9,15 +9,26 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 #include <unistd.h> /* close() */
+#include <time.h>
 
 
 /* structure to store arp entries */
 typedef struct _arp_cache {
-    struct nlmsghdr *nl_hdr;
-    struct rtattr *tb[NDA_MAX + 1];
-    uint8_t ndm_family;
-    uint16_t ndm_state; /* ndmsg structure variable */
+  struct nlmsghdr *nl_hdr;
+  struct rtattr *tb[NDA_MAX + 1];
+  uint8_t ndm_family;
+  uint16_t ndm_state; /* ndmsg structure variable */
 } arp_cache;
+
+typedef void (*nlarp_log_fn_t)(int, const char *, ...);
+typedef int (*nlarp_time_fn_t)(struct timespec *);
+
+typedef struct netlink_arp_cache_mod_init_args_t {
+  nlarp_log_fn_t log;
+  nlarp_time_fn_t get_time;
+} netlink_arp_cache_mod_init_args_t;
+
+int nlarpcache_mod_init(const netlink_arp_cache_mod_init_args_t *args);
 
 
 void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len);
