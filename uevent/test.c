@@ -1,6 +1,7 @@
 
 #include "uevent.h"
 #include "uevent_worker.h"
+#include "uevent_internal.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -44,32 +45,38 @@
 // =============================================================================
 // WRAPPERS FOR FAILURE INJECTION
 // =============================================================================
+static int fail_malloc = 0;
 static int fail_calloc = 0;
 static int fail_epoll_create1 = 0;
 static int fail_eventfd = 0;
 
 static void reset_fail_hooks(void) {
+  fail_malloc = 0;
   fail_calloc = 0;
   fail_epoll_create1 = 0;
   fail_eventfd = 0;
+  uevent_reset_allocators();
 }
 
+void set_malloc_fail(int count) { fail_malloc = count; }
 void set_calloc_fail(int count) { fail_calloc = count; }
 void set_epoll_create1_fail(int count) { fail_epoll_create1 = count; }
 void set_eventfd_fail(int count) { fail_eventfd = count; }
 
-static void *real_calloc(size_t n, size_t sz) {
-  void *ptr = malloc(n * sz);
-  if (ptr) memset(ptr, 0, n * sz);
-  return ptr;
+static void *test_malloc(size_t size) {
+  if (fail_malloc > 0) {
+    fail_malloc--;
+    return NULL;
+  }
+  return malloc(size);
 }
 
-void *calloc(size_t nmemb, size_t size) {
+static void *test_calloc(size_t nmemb, size_t size) {
   if (fail_calloc > 0) {
     fail_calloc--;
     return NULL;
   }
-  return real_calloc(nmemb, size);
+  return calloc(nmemb, size);
 }
 
 int epoll_create1(int flags) {
@@ -761,6 +768,7 @@ void test_base_creation_failures() {
 
   before = get_open_fd_count();
   set_calloc_fail(1);
+  uevent_set_allocators(NULL, test_calloc);
   base = uevent_base_new_with_workers(8, 0);
   assert(base == NULL);
   reset_fail_hooks();

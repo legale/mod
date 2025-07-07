@@ -29,6 +29,20 @@
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6
 
+uevent_malloc_func_t uevent_malloc_hook = malloc;
+uevent_calloc_func_t uevent_calloc_hook = calloc;
+
+void uevent_set_allocators(uevent_malloc_func_t mfn,
+                           uevent_calloc_func_t cfn) {
+  uevent_malloc_hook = mfn ? mfn : malloc;
+  uevent_calloc_hook = cfn ? cfn : calloc;
+}
+
+void uevent_reset_allocators(void) {
+  uevent_malloc_hook = malloc;
+  uevent_calloc_hook = calloc;
+}
+
 #ifndef container_of
 #define container_of(ptr, type, member) \
   ((type *)((char *)(ptr) - offsetof(type, member)))
@@ -229,12 +243,12 @@ static int uev_slots_init(uevent_base_t *base, int max_events) {
 
   pthread_mutex_init(&base->slots_mut, NULL);
 
-  base->uev_arr = calloc(max_events, sizeof(uev_t));
+  base->uev_arr = UEV_CALLOC(max_events, sizeof(uev_t));
   if (base->uev_arr == NULL) {
     return -1;
   }
 
-  base->free_uev_arr = malloc(max_events * sizeof(unsigned int));
+  base->free_uev_arr = UEV_MALLOC(max_events * sizeof(unsigned int));
   if (base->free_uev_arr == NULL) {
     free(base->uev_arr);
     return -1;
@@ -309,7 +323,7 @@ uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
     goto fail;
   }
 
-  base = calloc(1, sizeof(uevent_base_t));
+  base = UEV_CALLOC(1, sizeof(uevent_base_t));
   if (base == NULL) {
     goto fail;
   }
@@ -335,7 +349,7 @@ uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
     goto fail_epoll_fd;
   }
 
-  base->events = calloc(max_events, sizeof(struct epoll_event));
+  base->events = UEV_CALLOC(max_events, sizeof(struct epoll_event));
   if (base->events == NULL) {
     goto fail_wakeup_fd;
   }
@@ -457,7 +471,7 @@ void uevent_active(uev_t *uev) {
 static uevent_t *uevent_alloc_ev(uevent_t *ev) {
   if (ev != NULL) return ev;
 
-  uevent_t *event = calloc(1, sizeof(uevent_t));
+  uevent_t *event = UEV_CALLOC(1, sizeof(uevent_t));
   return event;
 }
 
