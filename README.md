@@ -71,6 +71,15 @@ cd timeutil
 make test TEST=msleep_accuracy
 ```
 
+A dedicated performance test named `perf_custom_vs_system` compares the
+execution time of `tu_clock_gettime_monotonic_fast` with the standard
+`clock_gettime` implementation and prints absolute and relative results:
+
+```sh
+cd timeutil
+make test TEST=perf_custom_vs_system
+```
+
 The `uevent` module offers a `check` target which runs both regular and robust tests.
 
 A small `test_util.h` header at the repository root defines common macros for

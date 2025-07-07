@@ -328,6 +328,40 @@ static void test_timezone_offset_fail(void) {
   PRINT_TEST_PASSED();
 }
 
+static void test_perf_custom_vs_system(void) {
+  PRINT_TEST_START("performance: tu_clock_gettime_monotonic_fast vs clock_gettime");
+
+  const int iters = 1000000;
+  struct timespec ts, start, end;
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  for (int i = 0; i < iters; i++) {
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  }
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  uint64_t sys_ns = (uint64_t)(end.tv_sec - start.tv_sec) * NS_PER_SEC +
+                     (uint64_t)(end.tv_nsec - start.tv_nsec);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  for (int i = 0; i < iters; i++) {
+    tu_clock_gettime_monotonic_fast(&ts);
+  }
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  uint64_t fast_ns = (uint64_t)(end.tv_sec - start.tv_sec) * NS_PER_SEC +
+                      (uint64_t)(end.tv_nsec - start.tv_nsec);
+
+  double avg_sys = (double)sys_ns / iters;
+  double avg_fast = (double)fast_ns / iters;
+  double diff_abs = avg_fast - avg_sys;
+  double diff_perc = avg_sys ? diff_abs / avg_sys * 100.0 : 0.0;
+
+  PRINT_TEST_INFO("clock_gettime avg: %.2f ns", avg_sys);
+  PRINT_TEST_INFO("fast version avg : %.2f ns", avg_fast);
+  PRINT_TEST_INFO("difference: %.2f ns (%.2f%%)", diff_abs, diff_perc);
+
+  PRINT_TEST_PASSED();
+}
+
 int main(int argc, char **argv) {
   timeutil_mod_init_args_t args = {0};
 #ifdef TESTRUN
@@ -350,7 +384,8 @@ int main(int argc, char **argv) {
                 test_monotonic_negative_and_realtime_overflow},
                {"atomic_ts_ops", test_atomic_ts_ops},
                {"timezone_offset", test_timezone_offset},
-               {"timezone_offset_fail", test_timezone_offset_fail}};
+               {"timezone_offset_fail", test_timezone_offset_fail},
+               {"perf_custom_vs_system", test_perf_custom_vs_system}};
 
   if (argc > 1) {
     for (size_t i = 0; i < ARRAY_SIZE(tests); i++) {
