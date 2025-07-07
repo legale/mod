@@ -7,6 +7,7 @@ This repository contains several small C libraries and utilities. Each module li
 - **htable** – simple hash table implementation.
 - **list** – doubly linked list helpers from the Linux kernel.
 - **minheap** – binary min-heap container.
+- **netlink_getlink** – query network interfaces via netlink.
 - **nlmon** – netlink monitor used for tracking network events.
 - **syslog2** – lightweight asynchronous logging helper.
 - **timeutil** – helper routines for measuring time and pausing execution.
@@ -21,7 +22,7 @@ cd <module>
 make test
 ```
 
-Some modules (minheap, nlmon, syslog2 and timeutil) also provide a `coverage` target that recompiles with GCOV flags and prints a short coverage report:
+Some modules (minheap, netlink_getlink, nlmon, syslog2 and timeutil) also provide a `coverage` target that recompiles with GCOV flags and prints a short coverage report:
 
 ```sh
 cd <module>
