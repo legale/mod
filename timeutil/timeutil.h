@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <time.h>
 
 #define NS_PER_USEC 1000U
@@ -39,6 +40,14 @@ int msleep(uint64_t ms);
 void atomic_ts_load(atomic_timespec_t *src, struct timespec *dest);
 void atomic_ts_store(atomic_timespec_t *dest, struct timespec *src);
 void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} timeutil_mod_init_args_t;
+
+void timeutil_mod_init(const timeutil_mod_init_args_t *args);
 
 static inline int tu_clock_gettime_monotonic_fast(struct timespec *ts) {
   return tu_clock_gettime_fast_internal(ts);

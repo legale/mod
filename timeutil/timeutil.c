@@ -3,6 +3,24 @@
 #include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+
+static void *(*timeutil_malloc_hook)(size_t) = malloc;
+static void (*timeutil_free_hook)(void *) = free;
+static void (*timeutil_log_hook)(const char *, ...) = NULL;
+
+void timeutil_mod_init(const timeutil_mod_init_args_t *args) {
+  if (args) {
+    timeutil_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    timeutil_free_hook = args->free_fn ? args->free_fn : free;
+    timeutil_log_hook = args->log_fn;
+  } else {
+    timeutil_malloc_hook = malloc;
+    timeutil_free_hook = free;
+    timeutil_log_hook = NULL;
+  }
+}
 
 static struct timespec offset_global_ts;
 static struct timespec pause_accum_global;

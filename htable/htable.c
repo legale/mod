@@ -3,6 +3,24 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+
+static void *(*htable_malloc_hook)(size_t) = malloc;
+static void (*htable_free_hook)(void *) = free;
+static void (*htable_log_hook)(const char *, ...) = NULL;
+
+void htable_mod_init(const htable_mod_init_args_t *args) {
+  if (args) {
+    htable_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    htable_free_hook = args->free_fn ? args->free_fn : free;
+    htable_log_hook = args->log_fn;
+  } else {
+    htable_malloc_hook = malloc;
+    htable_free_hook = free;
+    htable_log_hook = NULL;
+  }
+}
 
 // Хеш-функция по ключу
 static inline unsigned int htable_hash(uintptr_t key, size_t capacity) {

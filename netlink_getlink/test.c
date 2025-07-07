@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 int main(void) {
+  netlink_getlink_mod_init(NULL);
   struct slist_head list;
   INIT_SLIST_HEAD(&list);
 

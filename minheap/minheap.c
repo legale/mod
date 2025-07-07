@@ -5,6 +5,23 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
+
+static void *(*minheap_malloc_hook)(size_t) = malloc;
+static void (*minheap_free_hook)(void *) = free;
+static void (*minheap_log_hook)(const char *, ...) = NULL;
+
+void minheap_mod_init(const minheap_mod_init_args_t *args) {
+  if (args) {
+    minheap_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    minheap_free_hook = args->free_fn ? args->free_fn : free;
+    minheap_log_hook = args->log_fn;
+  } else {
+    minheap_malloc_hook = malloc;
+    minheap_free_hook = free;
+    minheap_log_hook = NULL;
+  }
+}
 
 #ifdef TESTRUN
 // Переопределение malloc для тестирования

@@ -80,4 +80,12 @@ bool mh_is_empty(minheap_t *minheap);
  */
 unsigned int mh_get_size(minheap_t *minheap);
 
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} minheap_mod_init_args_t;
+
+void minheap_mod_init(const minheap_mod_init_args_t *args);
+
 #endif /* LIBMINHEAP_MINHEAP_H */

@@ -9,6 +9,22 @@
 #include <syslog.h>
 #include <unistd.h>
 
+static void *(*syslog2_malloc_hook)(size_t) = malloc;
+static void (*syslog2_free_hook)(void *) = free;
+static void (*syslog2_log_hook)(const char *, ...) = NULL;
+
+void syslog2_mod_init(const syslog2_mod_init_args_t *args) {
+  if (args) {
+    syslog2_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    syslog2_free_hook = args->free_fn ? args->free_fn : free;
+    syslog2_log_hook = args->log_fn;
+  } else {
+    syslog2_malloc_hook = malloc;
+    syslog2_free_hook = free;
+    syslog2_log_hook = NULL;
+  }
+}
+
 const char *last_function[MAX_THREADS] = {NULL};
 pid_t thread_ids[MAX_THREADS] = {0};
 pthread_t pthread_ids[MAX_THREADS] = {0};

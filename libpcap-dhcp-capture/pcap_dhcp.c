@@ -2,6 +2,25 @@
 #include "../syslog2/syslog2.h"
 
 #include "../leak_detector_c/leak_detector.h"
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static void *(*pcap_dhcp_malloc_hook)(size_t) = malloc;
+static void (*pcap_dhcp_free_hook)(void *) = free;
+static void (*pcap_dhcp_log_hook)(const char *, ...) = NULL;
+
+void pcap_dhcp_mod_init(const pcap_dhcp_mod_init_args_t *args) {
+  if (args) {
+    pcap_dhcp_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    pcap_dhcp_free_hook = args->free_fn ? args->free_fn : free;
+    pcap_dhcp_log_hook = args->log_fn;
+  } else {
+    pcap_dhcp_malloc_hook = malloc;
+    pcap_dhcp_free_hook = free;
+    pcap_dhcp_log_hook = NULL;
+  }
+}
 
 /*
  * Convert a token value to a string; use "fmt" if not found.

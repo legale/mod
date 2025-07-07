@@ -13,6 +13,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <sys/eventfd.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -25,6 +27,22 @@
 #include "uevent.h"
 #include "uevent_internal.h"
 #include "uevent_worker.h"
+
+static void *(*uevent_malloc_user)(size_t) = malloc;
+static void (*uevent_free_user)(void *) = free;
+static void (*uevent_log_hook_user)(const char *, ...) = NULL;
+
+void uevent_mod_init(const uevent_mod_init_args_t *args) {
+  if (args) {
+    uevent_malloc_user = args->malloc_fn ? args->malloc_fn : malloc;
+    uevent_free_user = args->free_fn ? args->free_fn : free;
+    uevent_log_hook_user = args->log_fn;
+  } else {
+    uevent_malloc_user = malloc;
+    uevent_free_user = free;
+    uevent_log_hook_user = NULL;
+  }
+}
 
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6

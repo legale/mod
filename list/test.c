@@ -45,6 +45,7 @@ static void test_basic(void) {
 }
 
 int main(void) {
+  list_mod_init(NULL);
   test_basic();
   return 0;
 }

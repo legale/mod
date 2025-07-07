@@ -6,6 +6,7 @@
 #include <string.h>
 
 int main(void) {
+  netlink_arp_cache_mod_init(NULL);
   unsigned char buf[256];
 
   struct rtattr *rta1 = (struct rtattr *)buf;

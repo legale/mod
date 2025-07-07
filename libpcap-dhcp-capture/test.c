@@ -38,6 +38,7 @@ static void test_tok2str(void) {
 }
 
 int main(void) {
+  pcap_dhcp_mod_init(NULL);
   test_calc_vendor_specific_size();
   test_parse_vendor_specific_option_12();
   test_tok2str();

@@ -293,6 +293,7 @@ static void test_nl_handler_cb_multi_ifnames_events(void) {
 }
 
 int main(void) {
+  nlmon_mod_init(NULL);
   tu_init();
 
   test_init_netlink_monitor();

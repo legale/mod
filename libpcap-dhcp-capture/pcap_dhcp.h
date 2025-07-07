@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 
 /*
@@ -107,7 +108,17 @@ pcap_t *dhcp_pcap_open_live(const char *device);
 
 const char *tok2str(const struct tok *lp, const char *fmt, const u_int v);
 
-void dhcp_packet_handler(u_char *args, const struct pcap_pkthdr *h, const uint8_t *p);
+void dhcp_packet_handler(u_char *args, const struct pcap_pkthdr *h,
+                         const uint8_t *p);
 char *parse_vendor_specific_option_12(const nd_byte *vend_data, size_t vend_len);
 size_t calc_vendor_specific_size(struct bootp *sample);
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} pcap_dhcp_mod_init_args_t;
+
+void pcap_dhcp_mod_init(const pcap_dhcp_mod_init_args_t *args);
+
 #endif /* pcap_dhcp.h */

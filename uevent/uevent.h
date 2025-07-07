@@ -172,4 +172,12 @@ uint64_t get_current_time_ms(void);
 uev_t *uevent_try_ref(uev_t *uev); // atomic
 bool uevent_put(uev_t *uev);       // atomic
 
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} uevent_mod_init_args_t;
+
+void uevent_mod_init(const uevent_mod_init_args_t *args);
+
 #endif /* LIBUEVENT_UEVENT_H */

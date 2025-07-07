@@ -57,4 +57,12 @@ void *htable_get(htable_t *ht, uintptr_t key);
  */
 void htable_del(htable_t *ht, uintptr_t key);
 
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} htable_mod_init_args_t;
+
+void htable_mod_init(const htable_mod_init_args_t *args);
+
 #endif // HTABLE_H

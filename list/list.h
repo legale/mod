@@ -4,6 +4,7 @@
 /* List and hash list stuff from kernel */
 
 #include <stdio.h>
+#include <stddef.h>
 
 #ifndef __LINUX_KERNEL_H
 #define __LINUX_KERNEL_H
@@ -202,4 +203,12 @@ static inline void list_splice_init(struct list_head *list, struct list_head *he
 
 int list_is_empty(const struct list_head *head);
 int list_count(const struct list_head *head);
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} list_mod_init_args_t;
+
+void list_mod_init(const list_mod_init_args_t *args);
 #endif /* _LINUX_LIST_H_ */

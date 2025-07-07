@@ -44,4 +44,12 @@ void deinit_netlink_monitor(int fd);
 // Callback для обработки Netlink-событий
 void nl_handler_cb(uevent_t *ev, int fd, short events);
 
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} nlmon_mod_init_args_t;
+
+void nlmon_mod_init(const nlmon_mod_init_args_t *args);
+
 #endif // NL_MON_H

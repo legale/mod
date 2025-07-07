@@ -328,6 +328,7 @@ static void test_timezone_offset_fail(void) {
 }
 
 int main(void) {
+  timeutil_mod_init(NULL);
   tu_init();
 
   test_msleep_accuracy();

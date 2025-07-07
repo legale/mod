@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 #include <sys/socket.h>
 #include <sys/stat.h> // fchmod
 #include <sys/time.h> /* timeval_t struct */
@@ -20,6 +21,22 @@
 #include "../syslog2/syslog2.h"
 
 #include "../leak_detector_c/leak_detector.h"
+
+static void *(*netlink_getlink_malloc_hook)(size_t) = malloc;
+static void (*netlink_getlink_free_hook)(void *) = free;
+static void (*netlink_getlink_log_hook)(const char *, ...) = NULL;
+
+void netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
+  if (args) {
+    netlink_getlink_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    netlink_getlink_free_hook = args->free_fn ? args->free_fn : free;
+    netlink_getlink_log_hook = args->log_fn;
+  } else {
+    netlink_getlink_malloc_hook = malloc;
+    netlink_getlink_free_hook = free;
+    netlink_getlink_log_hook = NULL;
+  }
+}
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))

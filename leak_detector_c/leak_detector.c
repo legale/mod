@@ -3,6 +3,23 @@
 #include <string.h>
 
 #include "leak_detector.h"
+#include <stdarg.h>
+
+static void *(*leak_detector_malloc_hook)(size_t) = malloc;
+static void (*leak_detector_free_hook)(void *) = free;
+static void (*leak_detector_log_hook)(const char *, ...) = NULL;
+
+void leak_detector_mod_init(const leak_detector_mod_init_args_t *args) {
+  if (args) {
+    leak_detector_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    leak_detector_free_hook = args->free_fn ? args->free_fn : free;
+    leak_detector_log_hook = args->log_fn;
+  } else {
+    leak_detector_malloc_hook = malloc;
+    leak_detector_free_hook = free;
+    leak_detector_log_hook = NULL;
+  }
+}
 
 #undef malloc
 #undef realloc

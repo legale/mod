@@ -127,6 +127,7 @@ static void test_syslog_branch(void) {
 }
 
 int main(void) {
+  syslog2_mod_init(NULL);
   setup_syslog2("test_syslog2", LOG_DEBUG, false);
 
   syslog2(LOG_INFO, "Starting test");

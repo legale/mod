@@ -651,6 +651,7 @@ void test_performance_vs_list() {
 }
 
 int main(void) {
+  minheap_mod_init(NULL);
 #ifdef DEBUG
   setup_syslog2("uevent_test", LOG_DEBUG, false);
 #else

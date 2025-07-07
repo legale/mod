@@ -205,6 +205,7 @@ void test_stress_and_random_operations() {
 
 // --- Главная функция для запуска всех тестов ---
 int main(void) {
+  htable_mod_init(NULL);
   // Принцип 6: Автоматический запуск всех тестов
   test_create_and_free();
   test_set_and_get_single_item();

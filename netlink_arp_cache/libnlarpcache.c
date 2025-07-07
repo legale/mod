@@ -4,6 +4,26 @@
 
 #include "libnlarpcache.h"
 #include "../syslog2/syslog2.h"
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+static void *(*netlink_arp_cache_malloc_hook)(size_t) = malloc;
+static void (*netlink_arp_cache_free_hook)(void *) = free;
+static void (*netlink_arp_cache_log_hook)(const char *, ...) = NULL;
+
+void netlink_arp_cache_mod_init(
+    const netlink_arp_cache_mod_init_args_t *args) {
+  if (args) {
+    netlink_arp_cache_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    netlink_arp_cache_free_hook = args->free_fn ? args->free_fn : free;
+    netlink_arp_cache_log_hook = args->log_fn;
+  } else {
+    netlink_arp_cache_malloc_hook = malloc;
+    netlink_arp_cache_free_hook = free;
+    netlink_arp_cache_log_hook = NULL;
+  }
+}
 
 void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len) {
   /* loop over all rtattributes */

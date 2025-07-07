@@ -9,6 +9,7 @@
 #define realloc(ptr, size) xrealloc(ptr, size, __FILE__, __LINE__)
 #define free(mem_ref) xfree(mem_ref)
 #endif
+#include <stddef.h>
 
 struct _MEM_INFO {
   void *address;
@@ -33,5 +34,13 @@ void xfree(void *mem_ref);
 void add_mem_info(void *mem_ref, unsigned int size, const char *file, unsigned int line);
 void remove_mem_info(void *mem_ref);
 void report_mem_leak(void);
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} leak_detector_mod_init_args_t;
+
+void leak_detector_mod_init(const leak_detector_mod_init_args_t *args);
 
 #endif

@@ -10,8 +10,26 @@
 
 #include <inttypes.h>
 #include <pthread.h>
-#include <stdatomic.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
+
+static void *(*uevent_worker_malloc_hook)(size_t) = malloc;
+static void (*uevent_worker_free_hook)(void *) = free;
+static void (*uevent_worker_log_hook)(const char *, ...) = NULL;
+
+void uevent_worker_mod_init(const uevent_mod_init_args_t *args) {
+  if (args) {
+    uevent_worker_malloc_hook = args->malloc_fn ? args->malloc_fn : malloc;
+    uevent_worker_free_hook = args->free_fn ? args->free_fn : free;
+    uevent_worker_log_hook = args->log_fn;
+  } else {
+    uevent_worker_malloc_hook = malloc;
+    uevent_worker_free_hook = free;
+    uevent_worker_log_hook = NULL;
+  }
+}
+#include <stdatomic.h>
 
 #define UEV_EXTRA_WORKER_TASKS 100
 #define UEV_MAX_WORKER_MULTIPLIER 8

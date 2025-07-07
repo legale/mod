@@ -1511,6 +1511,7 @@ void test_persist_and_self_adding_timer_with_workers() {
 }
 
 int main() {
+  uevent_mod_init(NULL);
   printf("Starting uevent library tests...\n\n");
 #ifdef DEBUG
   setup_syslog2("uevent_test", LOG_DEBUG, false);

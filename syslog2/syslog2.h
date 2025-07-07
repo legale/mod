@@ -10,6 +10,7 @@
 #include <pthread.h>     //pthread_setname_np
 #include <stdarg.h>      // va_list, va_start(), va_end()
 #include <stdbool.h>     //bool type
+#include <stddef.h>
 #include <stdio.h>       // printf()
 #include <string.h>      //memcpy
 #include <sys/syscall.h> // SYS_gettid
@@ -80,6 +81,14 @@ void syslog2_(int pri, const char *func, const char *filename, int line, const c
 void syslog2_printf_(int pri, const char *func, const char *filename, int line, const char *fmt, ...);
 void debug(const char *fmt, ...);
 void print_last_functions();
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} syslog2_mod_init_args_t;
+
+void syslog2_mod_init(const syslog2_mod_init_args_t *args);
 
 #define __FILENAME__ (__builtin_strrchr(__FILE__, '/') ? __builtin_strrchr(__FILE__, '/') + 1 : __FILE__)
 

@@ -6,6 +6,7 @@
 #include "../test_util.h"
 
 int main(void) {
+  leak_detector_mod_init(NULL);
 #ifdef LEAKCHECK
   PRINT_TEST_START("basic leak detector");
   char *tmp = malloc(10);

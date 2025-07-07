@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <errno.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -24,5 +25,13 @@ void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len
 ssize_t send_recv(const void *send_buf, size_t send_buf_len, void **recv_buf);
 ssize_t get_arp_cache(void **buf_ptr);
 ssize_t parse_arp_cache(void *buf, ssize_t buf_size, arp_cache cache[]);
+
+typedef struct {
+  void *(*malloc_fn)(size_t);
+  void (*free_fn)(void *);
+  void (*log_fn)(const char *, ...);
+} netlink_arp_cache_mod_init_args_t;
+
+void netlink_arp_cache_mod_init(const netlink_arp_cache_mod_init_args_t *args);
 
 #endif /* _LIB_NL_ARP_CACHE */
