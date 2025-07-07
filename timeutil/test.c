@@ -329,7 +329,7 @@ static void test_timezone_offset_fail(void) {
 }
 
 static void test_perf_custom_vs_system(void) {
-  PRINT_TEST_START("performance: tu_clock_gettime_monotonic_fast vs clock_gettime");
+  PRINT_TEST_START("performance: tu_clock_gettime_fast vs clock_gettime");
 
   const int iters = 1000000;
   struct timespec ts, start, end;
@@ -355,8 +355,33 @@ static void test_perf_custom_vs_system(void) {
   double diff_abs = avg_fast - avg_sys;
   double diff_perc = avg_sys ? diff_abs / avg_sys * 100.0 : 0.0;
 
-  PRINT_TEST_INFO("clock_gettime avg: %.2f ns", avg_sys);
-  PRINT_TEST_INFO("fast version avg : %.2f ns", avg_fast);
+  PRINT_TEST_INFO("monotonic clock_gettime avg: %.2f ns", avg_sys);
+  PRINT_TEST_INFO("monotonic fast avg    : %.2f ns", avg_fast);
+  PRINT_TEST_INFO("difference: %.2f ns (%.2f%%)", diff_abs, diff_perc);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  for (int i = 0; i < iters; i++) {
+    clock_gettime(CLOCK_REALTIME, &ts);
+  }
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  sys_ns = (uint64_t)(end.tv_sec - start.tv_sec) * NS_PER_SEC +
+           (uint64_t)(end.tv_nsec - start.tv_nsec);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+  for (int i = 0; i < iters; i++) {
+    tu_clock_gettime_realtime_fast(&ts);
+  }
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+  fast_ns = (uint64_t)(end.tv_sec - start.tv_sec) * NS_PER_SEC +
+            (uint64_t)(end.tv_nsec - start.tv_nsec);
+
+  avg_sys = (double)sys_ns / iters;
+  avg_fast = (double)fast_ns / iters;
+  diff_abs = avg_fast - avg_sys;
+  diff_perc = avg_sys ? diff_abs / avg_sys * 100.0 : 0.0;
+
+  PRINT_TEST_INFO("realtime clock_gettime avg: %.2f ns", avg_sys);
+  PRINT_TEST_INFO("realtime fast avg    : %.2f ns", avg_fast);
   PRINT_TEST_INFO("difference: %.2f ns (%.2f%%)", diff_abs, diff_perc);
 
   PRINT_TEST_PASSED();
