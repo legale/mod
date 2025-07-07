@@ -11,6 +11,7 @@
 #include <string.h>
 #include <sys/time.h> // gettimeofday
 #include <time.h>
+#include "../timeutil/timeutil.h"
 
 // --- Макросы ---
 #ifndef MIN
@@ -52,8 +53,6 @@ typedef struct {
   int value;
 } heap_value_t;
 
-#define MS_PER_SEC (1000U)
-#define NS_PER_MS (1000000U)
 
 static inline int clock_gettime_fast(struct timespec *ts, bool raw) {
   return clock_gettime(raw ? CLOCK_MONOTONIC_RAW : CLOCK_MONOTONIC, ts);
