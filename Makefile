@@ -1,5 +1,5 @@
-SUBDIRS := htable list minheap nlmon syslog2 timeutil uevent
-COV_DIRS := htable list minheap nlmon syslog2 timeutil
+SUBDIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil uevent
+COV_DIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil
 
 .PHONY: test coverage clean
 
