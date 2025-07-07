@@ -1,13 +1,14 @@
-#ifdef LEAKCHECK
 #ifndef LEAK_DETECTOR_C_H
 #define LEAK_DETECTOR_C_H
 
 #define FILE_NAME_LENGTH 512
 #define OUTPUT_FILE "/tmp/leak_info.txt"
+#ifdef LEAKCHECK
 #define malloc(size) xmalloc(size, __FILE__, __LINE__)
 #define calloc(elements, size) xcalloc(elements, size, __FILE__, __LINE__)
 #define realloc(ptr, size) xrealloc(ptr, size, __FILE__, __LINE__)
 #define free(mem_ref) xfree(mem_ref)
+#endif
 
 struct _MEM_INFO {
   void *address;
@@ -33,5 +34,4 @@ void add_mem_info(void *mem_ref, unsigned int size, const char *file, unsigned i
 void remove_mem_info(void *mem_ref);
 void report_mem_leak(void);
 
-#endif
 #endif

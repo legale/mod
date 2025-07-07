@@ -1,7 +1,7 @@
 #include "pcap_dhcp.h"
 #include "../syslog2/syslog2.h"
 
-#include "leak_detector_c.h"
+#include "../leak_detector_c/leak_detector.h"
 
 /*
  * Convert a token value to a string; use "fmt" if not found.

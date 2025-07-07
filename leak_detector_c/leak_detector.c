@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "leak_detector_c.h"
+#include "leak_detector.h"
 
 #undef malloc
 #undef realloc
