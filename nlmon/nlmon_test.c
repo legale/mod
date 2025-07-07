@@ -292,16 +292,19 @@ static void test_nl_handler_cb_multi_ifnames_events(void) {
   PRINT_TEST_PASSED();
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   tu_init();
 
-  test_init_netlink_monitor();
-  test_deinit_netlink_monitor();
-  test_nl_handler_cb();
-  test_nl_handler_cb_invalid_ifname();
-  test_nl_handler_cb_multiple_filters();
-  test_nl_handler_cb_multi_ifnames_events();
+  struct test_entry tests[] = {
+      {"init_netlink_monitor", test_init_netlink_monitor},
+      {"deinit_netlink_monitor", test_deinit_netlink_monitor},
+      {"nl_handler_cb", test_nl_handler_cb},
+      {"nl_handler_cb_invalid_ifname", test_nl_handler_cb_invalid_ifname},
+      {"nl_handler_cb_multiple_filters", test_nl_handler_cb_multiple_filters},
+      {"nl_handler_cb_multi_ifnames_events", test_nl_handler_cb_multi_ifnames_events}};
 
-  printf(KGRN "====== All nlmon tests passed! ======\n" KNRM);
-  return 0;
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All nlmon tests passed! ======\n" KNRM);
+  return rc;
 }

@@ -95,10 +95,13 @@ coverage: test
 # Compile and run tests
 test: CFLAGS += -fprofile-arcs -ftest-coverage
 test: $(TEST_EXECS)
-	@for test_exec in $^ ; do \
-		echo Running $$test_exec ; \
-		$$test_exec ; \
-	done
+        @for test_exec in $^ ; do \
+                name=$$(basename $$test_exec) ; \
+                if [ -z "$(TEST)" ] || [ "$$name" = "$(TEST)" ]; then \
+                        echo Running $$test_exec ; \
+                        $$test_exec $(TEST) ; \
+                fi ; \
+        done
 
 # Rule to make each test executable
 $(BD)/%: $(BD)/%.o $(OBJS_LIB) $(UNITY_OBJ)

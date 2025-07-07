@@ -64,11 +64,12 @@ cd <module>
 make coverage
 ```
 
-The timeutil module also accepts a `TEST` variable so you can run a single test:
+Every module's `test` target accepts a `TEST` variable so you can run a single
+test by name:
 
 ```sh
-cd timeutil
-make test TEST=msleep_accuracy
+cd <module>
+make test TEST=test_name
 ```
 
 A dedicated performance test named `perf_custom_vs_system` compares the

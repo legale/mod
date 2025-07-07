@@ -47,8 +47,8 @@ main: main.o $(LIBNAME)
 .PRECIOUS: test
 
 test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
-	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	./test
+		$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
+		./test $(TEST)
 
 ../syslog2/libsyslog2.a:
 	$(MAKE) -C ../syslog2 all

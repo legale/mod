@@ -44,7 +44,10 @@ static void test_basic(void) {
   PRINT_TEST_PASSED();
 }
 
-int main(void) {
-  test_basic();
-  return 0;
+int main(int argc, char **argv) {
+  struct test_entry tests[] = {{"basic", test_basic}};
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All list tests passed! ======\n" KNRM);
+  return rc;
 }

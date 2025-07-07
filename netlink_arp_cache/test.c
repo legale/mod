@@ -39,7 +39,7 @@ int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 }
 #endif
 
-int main(void) {
+static void test_parse_rtattr(void) {
   nlarpcache_mod_init(&(netlink_arp_cache_mod_init_args_t){
       .log = mock_log, .get_time = mock_time});
 
@@ -78,7 +78,13 @@ int main(void) {
   free(rb);
 
   assert(log_called == 1);
+  PRINT_TEST_PASSED();
+}
 
-  printf("All tests passed\n");
-  return 0;
+int main(int argc, char **argv) {
+  struct test_entry tests[] = {{"parse_rtattr", test_parse_rtattr}};
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All netlink_arp_cache tests passed! ======\n" KNRM);
+  return rc;
 }

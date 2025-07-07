@@ -1532,13 +1532,62 @@ void test_persist_and_self_adding_timer_with_workers() {
   PRINT_TEST_PASSED();
 }
 
-int main() {
+int main(int argc, char **argv) {
   printf("Starting uevent library tests...\n\n");
 #ifdef DEBUG
   setup_syslog2("uevent_test", LOG_DEBUG, false);
 #else
   setup_syslog2("uevent_test", LOG_NOTICE, false);
 #endif
+
+  struct test_entry tests[] = {
+      {"mod_init", test_mod_init},
+      {"static_persist_timer_recreate", test_static_persist_timer_recreate},
+      {"real_world_load_simulation", test_real_world_load_simulation},
+      {"refcount_during_callback_execution", test_refcount_during_callback_execution},
+      {"uevent_active", test_uevent_active},
+      {"worker_pool_create_destroy", test_worker_pool_create_destroy},
+      {"worker_pool_insert_execute", test_worker_pool_insert_execute},
+      {"worker_pool_stop_wait", test_worker_pool_stop_wait},
+      {"uevent_add_with_current_timeout", test_uevent_add_with_current_timeout},
+      {"persist_and_self_adding_timer", test_persist_and_self_adding_timer},
+      {"persist_and_self_adding_timer_with_workers", test_persist_and_self_adding_timer_with_workers},
+      {"del_inactive_event", test_del_inactive_event},
+      {"null_event_del", test_null_event_del},
+      {"multiple_events_on_fd", test_multiple_events_on_fd},
+      {"event_flags_combinations", test_event_flags_combinations},
+      {"add_same_event_twice", test_add_same_event_twice},
+      {"add_event_fd_minus1", test_add_event_fd_minus1},
+      {"stress_active", test_stress_active},
+      {"create_and_free_dynamic_event", test_create_and_free_dynamic_event},
+      {"create_and_free_static_event", test_create_and_free_static_event},
+      {"add_and_del_event", test_add_and_del_event},
+      {"timeout_event", test_timeout_event},
+      {"read_event", test_read_event},
+      {"write_event", test_write_event},
+      {"error_hup_event", test_error_hup_event},
+      {"invalid_fd_read_event", test_invalid_fd_read_event},
+      {"invalid_fd_write_event", test_invalid_fd_write_event},
+      {"fd_becomes_invalid_event", test_fd_becomes_invalid_event},
+      {"stress_mt", test_stress_mt},
+      {"persist_event", test_persist_event},
+      {"null_params", test_null_params},
+      {"base_creation_failures", test_base_creation_failures},
+      {"double_free_detection", test_double_free_detection},
+      {"double_add_del", test_double_add_del},
+      {"fd_edge_cases", test_fd_edge_cases},
+      {"special_timeouts", test_special_timeouts},
+      {"null_callback", test_null_callback},
+      {"pending_and_initialized", test_pending_and_initialized},
+      {"multiple_bases", test_multiple_bases},
+      {"mt_add_del", test_mt_add_del},
+      {"massive_events", test_massive_events},
+      {"self_readding_timers_race", test_self_readding_timers_race},
+      {"wakeup_and_timeout_accuracy", test_wakeup_and_timeout_accuracy}};
+
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (argc > 1 || rc)
+    return rc;
 
   test_mod_init();
 

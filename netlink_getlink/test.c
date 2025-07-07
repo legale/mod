@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>
+#include "../test_util.h"
 
 static int log_called = 0;
 
@@ -23,7 +24,7 @@ static int mock_time(clockid_t clk, struct timespec *ts) {
   return 0;
 }
 
-int main(void) {
+static void test_get_netdev_list(void) {
   netlink_getlink_mod_init(&(netlink_getlink_mod_init_args_t){
       .log = mock_log,
       .get_time = mock_time});
@@ -35,6 +36,13 @@ int main(void) {
   assert(slist_empty(&list) == 0 && "netdev list should not be empty");
 
   free_netdev_list(&list);
-  printf("====== All netlink_getlink tests passed! ======\n");
-  return 0;
+  PRINT_TEST_PASSED();
+}
+
+int main(int argc, char **argv) {
+  struct test_entry tests[] = {{"get_netdev_list", test_get_netdev_list}};
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All netlink_getlink tests passed! ======\n" KNRM);
+  return rc;
 }

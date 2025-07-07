@@ -80,11 +80,11 @@ $(ROBUST_TEST_BIN): $(ROBUST_TEST_OBJS)
 
 # Запуск обычных тестов
 test: $(TEST_BIN)
-	./$(TEST_BIN)
+	        ./$(TEST_BIN) $(TEST)
 
 # Запуск тестов на надежность
 robust_test: $(ROBUST_TEST_BIN)
-	./$(ROBUST_TEST_BIN)
+	        ./$(ROBUST_TEST_BIN) $(TEST)
 
 # Запуск ВСЕХ тестов
 check: test robust_test
