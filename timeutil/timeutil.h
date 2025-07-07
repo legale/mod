@@ -14,6 +14,16 @@
 #include <stdint.h>
 #include <time.h>
 
+typedef int (*timeutil_get_time_fn_t)(clockid_t, struct timespec *);
+typedef int (*timeutil_sleep_fn_t)(const struct timespec *, struct timespec *);
+typedef void (*timeutil_log_fn_t)(const char *);
+
+typedef struct {
+  timeutil_get_time_fn_t get_time;
+  timeutil_sleep_fn_t sleep_fn;
+  timeutil_log_fn_t log_hook;
+} timeutil_mod_init_args_t;
+
 #define NS_PER_USEC 1000U
 #define USEC_PER_MS 1000U
 #define MS_PER_SEC 1000U
@@ -27,6 +37,7 @@ typedef struct atomic_timespec {
   _Atomic long tv_nsec;
 } atomic_timespec_t;
 
+int timeutil_mod_init(const timeutil_mod_init_args_t *args);
 void tu_init(void);
 void tu_update_offset(void);
 int tu_clock_gettime_fast_internal(struct timespec *ts);

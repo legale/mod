@@ -4,16 +4,35 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+static timeutil_get_time_fn_t get_time_ptr = clock_gettime;
+static timeutil_sleep_fn_t sleep_fn_ptr = nanosleep;
+static timeutil_log_fn_t log_hook_ptr = NULL;
+
 static struct timespec offset_global_ts;
 static struct timespec pause_accum_global;
 static struct timespec pause_start_global;
 static volatile bool pause_active_global;
 
+int timeutil_mod_init(const timeutil_mod_init_args_t *args) {
+  if (!args) {
+    get_time_ptr = clock_gettime;
+    sleep_fn_ptr = nanosleep;
+    log_hook_ptr = NULL;
+    return 0;
+  }
+
+  get_time_ptr = args->get_time ? args->get_time : clock_gettime;
+  sleep_fn_ptr = args->sleep_fn ? args->sleep_fn : nanosleep;
+  log_hook_ptr = args->log_hook;
+
+  return 0;
+}
+
 int msleep(uint64_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / MS_PER_SEC;
   ts.tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS;
-  return nanosleep(&ts, NULL);
+  return sleep_fn_ptr(&ts, NULL);
 }
 
 static inline void timespec_add(struct timespec *dst, const struct timespec *src) {
@@ -37,8 +56,8 @@ static inline void timespec_sub(const struct timespec *end, const struct timespe
 void tu_update_offset(void) {
   struct timespec realtime, monotonic, diff;
 
-  clock_gettime(CLOCK_REALTIME, &realtime);
-  clock_gettime(CLOCK_MONOTONIC_RAW, &monotonic);
+  get_time_ptr(CLOCK_REALTIME, &realtime);
+  get_time_ptr(CLOCK_MONOTONIC_RAW, &monotonic);
 
   tu_diff_ts(&diff, &monotonic, &realtime);
 
@@ -56,7 +75,7 @@ void tu_init(void) {
 }
 
 int tu_clock_gettime_fast_internal(struct timespec *ts) {
-  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, ts);
+  int ret = get_time_ptr(CLOCK_MONOTONIC_RAW, ts);
   if (ret == 0) {
     ts->tv_sec -= pause_accum_global.tv_sec;
     ts->tv_nsec -= pause_accum_global.tv_nsec;
@@ -84,7 +103,7 @@ int tu_clock_gettime_realtime_fast(struct timespec *ts) {
 
 void tu_pause_start(void) {
   if (!pause_active_global) {
-    clock_gettime(CLOCK_MONOTONIC_RAW, &pause_start_global);
+    get_time_ptr(CLOCK_MONOTONIC_RAW, &pause_start_global);
     __atomic_store_n(&pause_active_global, true, __ATOMIC_RELEASE);
   }
 }
@@ -92,7 +111,7 @@ void tu_pause_start(void) {
 void tu_pause_end(void) {
   if (__atomic_load_n(&pause_active_global, __ATOMIC_ACQUIRE)) {
     struct timespec now, diff;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+    get_time_ptr(CLOCK_MONOTONIC_RAW, &now);
     timespec_sub(&now, &pause_start_global, &diff);
     timespec_add(&pause_accum_global, &diff);
     __atomic_store_n(&pause_active_global, false, __ATOMIC_RELEASE);
