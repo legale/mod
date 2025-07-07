@@ -8,6 +8,22 @@
 #include <string.h>
 #include <unistd.h>
 
+static int log_called = 0;
+static int time_called = 0;
+
+static void mock_log(int pri, const char *fmt, ...) {
+  (void)pri;
+  (void)fmt;
+  log_called++;
+}
+
+static int mock_time(struct timespec *ts) {
+  time_called++;
+  ts->tv_sec = 0;
+  ts->tv_nsec = 0;
+  return 0;
+}
+
 // Helper to capture stdout using open_memstream
 static FILE *capture_start(char **buf, size_t *size, FILE **old) {
   *buf = NULL;
@@ -126,6 +142,27 @@ static void test_syslog_branch(void) {
   setup_syslog2("test_syslog2", LOG_DEBUG, false);
 }
 
+static void test_syslog2_mod_init(void) {
+  syslog2_mod_init(&(syslog2_mod_init_args_t){.log = mock_log, .get_time = mock_time});
+
+  setup_syslog2("init_syslog", LOG_DEBUG, true);
+  log_called = 0;
+  syslog2(LOG_INFO, "call via log");
+  assert(log_called == 1);
+
+  setup_syslog2("init_syslog", LOG_DEBUG, false);
+  time_called = 0;
+  char *out = NULL;
+  size_t sz = 0;
+  FILE *old, *mem = capture_start(&out, &sz, &old);
+  syslog2(LOG_INFO, "call via time");
+  capture_end(mem, old);
+  free(out);
+  assert(time_called == 1);
+
+  syslog2_mod_init(NULL);
+}
+
 int main(void) {
   setup_syslog2("test_syslog2", LOG_DEBUG, false);
 
@@ -138,6 +175,7 @@ int main(void) {
   test_debug_call();
   test_syslog2_printf();
   test_syslog_branch();
+  test_syslog2_mod_init();
 
   printf("All syslog2 tests passed!\n");
   return 0;

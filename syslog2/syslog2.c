@@ -9,12 +9,26 @@
 #include <syslog.h>
 #include <unistd.h>
 
+static void (*log_func)(int, const char *, ...) = syslog;
+static int (*get_time_func)(struct timespec *) = tu_clock_gettime_realtime_fast;
+
 const char *last_function[MAX_THREADS] = {NULL};
 pid_t thread_ids[MAX_THREADS] = {0};
 pthread_t pthread_ids[MAX_THREADS] = {0};
 
 static bool log_syslog = true;
 int cached_mask = -1;
+
+int syslog2_mod_init(const syslog2_mod_init_args_t *args) {
+  if (!args) {
+    log_func = syslog;
+    get_time_func = tu_clock_gettime_realtime_fast;
+  } else {
+    log_func = args->log ? args->log : syslog;
+    get_time_func = args->get_time ? args->get_time : tu_clock_gettime_realtime_fast;
+  }
+  return 0;
+}
 
 static const char *priority_texts[] = {
     "M", "A", "C", "E", "W", "N", "I", "D"};
@@ -56,7 +70,7 @@ void print_last_functions() {
 static void current_time_str(char *buf, size_t sz, int pri) {
   struct timespec ts;
   struct tm tm;
-  tu_clock_gettime_realtime_fast(&ts);
+  get_time_func(&ts);
   time_t t = ts.tv_sec;
   localtime_r(&t, &tm);
   snprintf(buf, sz, "%02d-%02d-%04d %02d:%02d:%02d.%03ld %s",
@@ -78,7 +92,7 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   va_end(ap);
 
   if (log_syslog) {
-    syslog(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
+    log_func(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
   } else {
     char tbuf[64];
     current_time_str(tbuf, sizeof(tbuf), pri);
@@ -96,7 +110,7 @@ void syslog2_printf_(int pri, const char *func, const char *file, int line, cons
   va_end(ap);
 
   if (log_syslog) {
-    syslog(pri, "%s", msg);
+    log_func(pri, "%s", msg);
   } else {
     printf("%s", msg);
   }
