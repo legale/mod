@@ -28,6 +28,13 @@ extern const char *last_function[MAX_THREADS];
 extern pid_t thread_ids[MAX_THREADS]; // Реальные идентификаторы потоков
 extern pthread_t pthread_ids[MAX_THREADS];
 
+typedef struct syslog2_mod_init_args_t {
+  void (*log)(int, const char *, ...);
+  int (*get_time)(struct timespec *);
+} syslog2_mod_init_args_t;
+
+int syslog2_mod_init(const syslog2_mod_init_args_t *args);
+
 // Макрос для записи имени функции
 // Макрос для записи имени функции
 #define SET_CURRENT_FUNCTION()           \
