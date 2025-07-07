@@ -214,7 +214,7 @@ uevent_worker_pool_t *uevent_worker_pool_create(int num_workers) {
 
   if (num_workers <= 0) return NULL;
 
-  pool = calloc(1, sizeof(uevent_worker_pool_t));
+  pool = UEV_CALLOC(1, sizeof(uevent_worker_pool_t));
   if (pool == NULL) return NULL;
 
   pool->num_workers = num_workers;
@@ -227,7 +227,7 @@ uevent_worker_pool_t *uevent_worker_pool_create(int num_workers) {
   if (pthread_mutex_init(&pool->idle_mutex, NULL) != 0) goto fail_task_cond;
   if (pthread_cond_init(&pool->idle_cond, NULL) != 0) goto fail_idle_mutex;
 
-  pool->workers = calloc(num_workers, sizeof(pthread_t));
+  pool->workers = UEV_CALLOC(num_workers, sizeof(pthread_t));
   if (pool->workers == NULL) goto fail_idle_cond;
 
   for (i = 0; i < pool->num_workers; i++) {
@@ -269,7 +269,7 @@ void uevent_worker_pool_insert(uevent_worker_pool_t *pool, uev_t *uev, short tri
 
   TINIT;
   TMARK(10, "START");
-  uevent_task_t *task = malloc(sizeof(uevent_task_t));
+  uevent_task_t *task = UEV_MALLOC(sizeof(uevent_task_t));
   if (task == NULL) {
     syslog2(LOG_ERR, "Failed to allocate memory for uevent task");
     return;
