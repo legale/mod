@@ -1,58 +1,74 @@
-# Name of output file
-NAME = dhcp
-# Build dir
-BD = ./build
-
-# Linker flags
-LDLIBS += -lpcap
-LDDIRS += -L$(BD)
-
-# Compiler flags
-CFLAGS += -Wall -Wextra -O2 -Wno-unused-parameter
-ifdef LEAKCHECK
-CFLAGS += -DLEAKCHECK
-endif
-I += -I./usr/include
-
-# Compiler
 CC = gcc
+CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
 AR = ar
+ARFLAGS = rcs
+LIBNAME = libpcap_dhcp.a
+OBJ = pcap_dhcp.o syslog.o
+TEST_OBJ = test.o
+MAIN_OBJ = main.o
+LDFLAGS = -L.
+LIBS = -lpcap_dhcp -lpcap
 
-# SRC=$(wildcard *.c)
-LIBNAME = pcap_dhcp
-SRC_LIB = pcap_dhcp.c syslog.c 
-SRC_BIN = main.c
-ifdef LEAKCHECK
-SRC_BIN += leak_detector_c.c 
+COV_CFLAGS = \
+  $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
+COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+
+ifeq ($(DEBUG),1)
+  CFLAGS += -O0 -DDEBUG=1 -g
+  COV_CFLAGS += -O0 -DDEBUG=1 -g
 endif
-OBJ_LIB = $(patsubst %.c, $(BD)/%.o, $(SRC_LIB))
-OBJ_LIB_PIC = $(patsubst %.c, $(BD)/%.pic.o, $(SRC_LIB))
-OBJ_BIN = $(patsubst %.c, $(BD)/%.o, $(SRC_BIN))
 
-all: $(NAME)
+ifeq ($(TESTRUN),1)
+  CFLAGS += -DTESTRUN=1
+  COV_CFLAGS += -DTESTRUN=1
+endif
 
-$(NAME): $(BD)/lib$(LIBNAME).a $(BD)/$(NAME)_shared $(BD)/$(NAME)_static
-# Combine additional compilation steps here if needed
-# ...
+ifeq ($(MAKECMDGOALS),coverage)
+  CFLAGS += -DTESTRUN=1
+  COV_CFLAGS += -DTESTRUN=1
+endif
 
-$(BD)/lib$(LIBNAME).a: $(OBJ_LIB)
-	$(AR) rcs $@ $^
+all: $(LIBNAME) main test
 
-$(BD)/$(NAME)_shared: $(OBJ_BIN) $(BD)/lib$(LIBNAME).so
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $^ -o $@ $(LDLIBS)
+$(LIBNAME): $(OBJ)
+	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
 
-$(BD)/$(NAME)_static: $(OBJ_BIN) $(BD)/lib$(LIBNAME).a
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) -Wl,-Bstatic -l$(LIBNAME) -Wl,-Bdynamic $^ -o $@ $(LDLIBS)
+pcap_dhcp.o: pcap_dhcp.c pcap_dhcp.h syslog.h
+	$(CC) $(CFLAGS) -c pcap_dhcp.c
 
-$(BD)/%.o: %.c
-	$(CC) $(CFLAGS) $(I) -c $< -o $@
+syslog.o: syslog.c syslog.h
+	$(CC) $(CFLAGS) -c syslog.c
 
-# for shared library with -fPIC
-$(BD)/%.pic.o: %.c
-	$(CC) $(CFLAGS) $(I) -c $< -o $@ -fPIC
+main: $(MAIN_OBJ) $(LIBNAME)
+	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
 
-$(BD)/lib$(LIBNAME).so: $(OBJ_LIB_PIC)
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $^ -shared -fPIC -o $@ $(LDLIBS)
+test: $(TEST_OBJ) $(LIBNAME)
+	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
+	./test
+
+main.o: main.c pcap_dhcp.h syslog.h
+	$(CC) $(CFLAGS) -c main.c
+
+test.o: test.c pcap_dhcp.h
+	$(CC) $(CFLAGS) -c test.c
+
+perf: test
+	@echo "Running valgrind callgrind profiler..."
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./test
+	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
+
+leak: test
+	@echo "Running valgrind memcheck for memory leaks..."
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./test
 
 clean:
-	rm -rf $(BD)/*
+	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) main test callgrind.out
+
+coverage: clean
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
+	@echo "=== Coverage report (gcov): ==="
+	@gcov pcap_dhcp.c | grep -A10 "File 'pcap_dhcp.c'"
+	@echo "=== Coverage report (summary): ==="
+	@gcov -b pcap_dhcp.c | grep -E 'Lines executed|Branches executed'
+
+.PHONY: all clean perf leak coverage
