@@ -15,9 +15,24 @@
 #include <sys/time.h> /* timeval_t struct */
 #include <sys/types.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "libnl_getlink.h"
 #include "../syslog2/syslog2.h"
+
+static void (*log_func)(int, const char *, ...) = NULL;
+static int (*get_time_func)(struct timespec *) = NULL;
+
+int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
+  if (!args) {
+    log_func = NULL;
+    get_time_func = NULL;
+    return 0;
+  }
+  log_func = args->log;
+  get_time_func = args->get_time;
+  return 0;
+}
 
 #include "../leak_detector_c/leak_detector.h"
 

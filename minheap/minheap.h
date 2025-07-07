@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 #ifdef TESTRUN
 // --- Нужные функции и переменные для тестов ---
@@ -79,5 +80,12 @@ bool mh_is_empty(minheap_t *minheap);
  * Текущее количество элементов в куче.
  */
 unsigned int mh_get_size(minheap_t *minheap);
+
+typedef struct {
+  void (*log)(int, const char *, ...);
+  int (*get_time)(struct timespec *);
+} minheap_mod_init_args_t;
+
+int minheap_mod_init(const minheap_mod_init_args_t *args);
 
 #endif /* LIBMINHEAP_MINHEAP_H */

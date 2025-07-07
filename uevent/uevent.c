@@ -21,10 +21,25 @@
 #include "../minheap/minheap.h"
 #include "../syslog2/syslog2.h"
 #include "../timeutil/timeutil.h"
-
 #include "uevent.h"
 #include "uevent_internal.h"
 #include "uevent_worker.h"
+
+#include <time.h>
+
+static void (*log_func)(int, const char *, ...) = NULL;
+static int (*get_time_func)(struct timespec *) = NULL;
+
+int uevent_mod_init(const uevent_mod_init_args_t *args) {
+  if (!args) {
+    log_func = NULL;
+    get_time_func = NULL;
+    return 0;
+  }
+  log_func = args->log;
+  get_time_func = args->get_time;
+  return 0;
+}
 
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6

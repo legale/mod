@@ -5,6 +5,7 @@
 #include <linux/rtnetlink.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
 
 #include <stdarg.h>      // va_list, va_start(), va_end()
 #include <stdio.h>       // printf()
@@ -45,5 +46,12 @@ typedef struct nl_req {
 int get_netdev(struct slist_head *list);
 netdev_item_t *ll_get_by_index(struct slist_head *list, int index);
 void free_netdev_list(struct slist_head *list);
+
+typedef struct {
+  void (*log)(int, const char *, ...);
+  int (*get_time)(struct timespec *);
+} netlink_getlink_mod_init_args_t;
+
+int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
 
 #endif // NETLINK_GET_ADDR_LIBNL_GETLINK_H
