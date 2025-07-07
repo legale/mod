@@ -64,6 +64,13 @@ cd <module>
 make coverage
 ```
 
+The timeutil module also accepts a `TEST` variable so you can run a single test:
+
+```sh
+cd timeutil
+make test TEST=msleep_accuracy
+```
+
 The `uevent` module offers a `check` target which runs both regular and robust tests.
 
 A small `test_util.h` header at the repository root defines common macros for

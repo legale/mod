@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #ifdef TESTRUN
 #include <errno.h>
@@ -327,7 +328,7 @@ static void test_timezone_offset_fail(void) {
   PRINT_TEST_PASSED();
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   timeutil_mod_init_args_t args = {0};
 #ifdef TESTRUN
   args.get_time = test_clock_gettime;
@@ -335,18 +336,36 @@ int main(void) {
 #endif
   timeutil_mod_init(&args);
   tu_init();
+  struct {
+    const char *name;
+    void (*fn)(void);
+  } tests[] = {{"msleep_accuracy", test_msleep_accuracy},
+               {"msleep_failure", test_msleep_failure},
+               {"tu_clock_realtime_fast", test_tu_clock_realtime_fast},
+               {"tu_clock_monotonic_fast", test_tu_clock_monotonic_fast},
+               {"clock_gettime_failure", test_clock_gettime_failure},
+               {"pause_resume", test_pause_resume},
+               {"pause_branches", test_pause_branches},
+               {"monotonic_negative_and_realtime_overflow",
+                test_monotonic_negative_and_realtime_overflow},
+               {"atomic_ts_ops", test_atomic_ts_ops},
+               {"timezone_offset", test_timezone_offset},
+               {"timezone_offset_fail", test_timezone_offset_fail}};
 
-  test_msleep_accuracy();
-  test_msleep_failure();
-  test_tu_clock_realtime_fast();
-  test_tu_clock_monotonic_fast();
-  test_clock_gettime_failure();
-  test_pause_resume();
-  test_pause_branches();
-  test_monotonic_negative_and_realtime_overflow();
-  test_atomic_ts_ops();
-  test_timezone_offset();
-  test_timezone_offset_fail();
+  if (argc > 1) {
+    for (size_t i = 0; i < ARRAY_SIZE(tests); i++) {
+      if (strcmp(argv[1], tests[i].name) == 0) {
+        tests[i].fn();
+        return 0;
+      }
+    }
+    fprintf(stderr, "Unknown test: %s\n", argv[1]);
+    return 1;
+  }
+
+  for (size_t i = 0; i < ARRAY_SIZE(tests); i++) {
+    tests[i].fn();
+  }
 
   printf(KGRN "====== All timeutil tests passed! ======\n" KNRM);
   return 0;
