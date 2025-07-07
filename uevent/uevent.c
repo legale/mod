@@ -127,12 +127,17 @@ static void uevent_reset_static_ev(uevent_t *ev) {
   ATOM_STORE_REL(ev->modification_lock, 0);
   ATOM_STORE_REL(ev->active_fd, 0);
   ATOM_STORE_REL(ev->active_timer, 0);
+  ATOM_STORE_REL(ev->pending_free, 0);
+  ATOM_STORE_REL(ev->is_in_worker_pool, 0);
   ev->uev = NULL; // Обнуляем ev->uev для статических событий
   ev->fd = -1;
   ev->events = 0;
   ev->cb = NULL;
   ev->cb_wrapper = NULL;
   ev->arg = NULL;
+  ev->name = NULL;
+  ev->timer_node.key = 0;
+  ev->timer_node.idx = 0;
 }
 
 // внутренняя функция освобождения памяти или сброса для статического события
