@@ -560,6 +560,10 @@ static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t 
   if (!uevent_try_lock(ev)) return;
 
   uevent_base_t *base = ATOM_LOAD_ACQ(ev->base);
+  if (base == NULL) {
+    uevent_unlock(ev);
+    return;
+  }
   // скипаем wakeup_event
   if (&base->wakeup_event == ev) {
     if (cb) {
