@@ -211,4 +211,6 @@ static inline void list_splice_init(struct list_head *list,
   }
 }
 
+int list_is_empty(const struct list_head *head);
+int list_count(const struct list_head *head);
 #endif /* _LINUX_LIST_H_ */

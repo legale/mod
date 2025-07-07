@@ -17,7 +17,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "../list.h"
+#include "../list/list.h"
 #include "../minheap/minheap.h"
 #include "../syslog2/syslog2.h"
 #include "../timeutil/timeutil.h"

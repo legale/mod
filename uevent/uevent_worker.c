@@ -2,7 +2,7 @@
 #define _GNU_SOURCE
 #endif
 
-#include "../list.h"
+#include "../list/list.h"
 #include "uevent.h" // uevent_t и uevent_cb_t
 
 #include "uevent_internal.h"

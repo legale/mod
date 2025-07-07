@@ -5,6 +5,7 @@ This repository contains several small C libraries and utilities. Each module li
 ## Modules
 
 - **htable** – simple hash table implementation.
+- **list** – doubly linked list helpers from the Linux kernel.
 - **minheap** – binary min-heap container.
 - **nlmon** – netlink monitor used for tracking network events.
 - **syslog2** – lightweight asynchronous logging helper.

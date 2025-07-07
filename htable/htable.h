@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "../list.h" // Предполагаем, что list.h в родительском каталоге
+#include "../list/list.h" // Предполагаем, что list.h в родительском каталоге
 
 // Узел хэш-таблицы
 typedef struct htable_node {
