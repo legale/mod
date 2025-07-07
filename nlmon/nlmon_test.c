@@ -118,6 +118,7 @@ static void test_nl_handler_cb(void) {
       .tu_pause_start = mock_tu_pause_start,
       .tu_pause_end = mock_tu_pause_end};
   uevent_t ev = {.dummy = 0};
+  (void)ev;
   pause_end_called = 0;
 
   const char *names[] = {ifname, NULL};
@@ -177,7 +178,9 @@ static void test_nl_handler_cb_invalid_ifname(void) {
       .events = NLMON_EVENT_LINK_UP,
       .cb = filter_cb,
       .arg = &cb_arg};
+  (void)filter;
   uevent_t ev = {.dummy = 0};
+  (void)ev;
   pause_end_called = 0;
 
   int fd = init_netlink_monitor();
@@ -204,6 +207,7 @@ static void test_nl_handler_cb_multiple_filters(void) {
   nlmon_install_filters(filters, 2);
 
   uevent_t ev = {.dummy = 0};
+  (void)ev;
   cb1_called = cb2_called = 0;
 
   int fd = init_netlink_monitor();

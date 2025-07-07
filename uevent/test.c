@@ -63,6 +63,7 @@ void set_calloc_fail(int count) { fail_calloc = count; }
 void set_epoll_create1_fail(int count) { fail_epoll_create1 = count; }
 void set_eventfd_fail(int count) { fail_eventfd = count; }
 
+static void *test_malloc(size_t size) __attribute__((unused));
 static void *test_malloc(size_t size) {
   if (fail_malloc > 0) {
     fail_malloc--;
