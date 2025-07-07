@@ -113,14 +113,14 @@ void test_create_malloc_fail() {
 #ifdef TESTRUN
   PRINT_TEST_START("Create heap with malloc failure (negative case)");
   SET_MALLOC(NULL);
-  minheap_t *heap = minheap_create(10);
+  minheap_t *heap = mh_create(10);
   assert(heap == NULL && "minheap_create should fail if malloc fails");
   UNSET_MALLOC;
 
   PRINT_TEST_INFO("test if malloc fail on second call");
   mcount = 0;
   SET_MALLOC(test_malloc_fail_second);
-  heap = minheap_create(10);
+  heap = mh_create(10);
   UNSET_MALLOC;
   assert(heap == NULL && "minheap_create should fail if malloc fail on second call");
 
