@@ -86,3 +86,9 @@ The optional Makefile in the repository root aggregates common actions:
 - `make clean` – remove build artefacts in all modules.
 
 Use it as a convenience wrapper instead of invoking `make` in each subdirectory.
+
+You can pass a `TEST` variable to run a single test from the `timeutil` module:
+
+```sh
+make test TEST=msleep_accuracy
+```

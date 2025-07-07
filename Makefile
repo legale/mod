@@ -7,11 +7,11 @@ COV_DIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil leak_dete
 test:
 	@set -e; for d in $(SUBDIRS); do \
 	printf "\n==> $$d\n"; \
-		if [ "$$d" = "uevent" ]; then \
-			$(MAKE) -C $$d check; \
-		else \
-			$(MAKE) -C $$d test; \
-		fi; \
+	if [ "$$d" = "uevent" ]; then \
+	$(MAKE) -C $$d check TEST="$(TEST)"; \
+	else \
+	$(MAKE) -C $$d test TEST="$(TEST)"; \
+	fi; \
 	done
 
 # Run coverage where supported
