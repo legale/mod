@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <time.h>
 
 // Заглушка для uevent_t, предполагаем, что определена где-то в коде
 typedef struct uevent_s uevent_t;
@@ -43,5 +44,12 @@ void deinit_netlink_monitor(int fd);
 
 // Callback для обработки Netlink-событий
 void nl_handler_cb(uevent_t *ev, int fd, short events);
+
+typedef struct {
+  void (*log)(int, const char *, ...);
+  int (*get_time)(struct timespec *);
+} nlmon_mod_init_args_t;
+
+int nlmon_mod_init(const nlmon_mod_init_args_t *args);
 
 #endif // NL_MON_H

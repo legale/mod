@@ -21,10 +21,11 @@
 #include "../minheap/minheap.h"
 #include "../syslog2/syslog2.h"
 #include "../timeutil/timeutil.h"
-
 #include "uevent.h"
 #include "uevent_internal.h"
 #include "uevent_worker.h"
+
+#include <time.h>
 
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6
