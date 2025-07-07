@@ -40,7 +40,7 @@ $(LIBNAME): $(OBJ)
 
 test: $(TEST_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	./test
+	./test $(TEST)
 
 main: $(MAIN_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
