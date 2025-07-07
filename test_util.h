@@ -2,6 +2,7 @@
 #define TEST_UTIL_H
 
 #include <stdio.h>
+#include <string.h>
 
 #define KNRM "\x1B[0m"
 #define KRED "\x1B[31m"
@@ -24,5 +25,30 @@
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
+
+struct test_entry {
+  const char *name;
+  void (*fn)(void);
+};
+
+static inline int run_named_test(const char *name,
+                                 const struct test_entry *tests,
+                                 size_t count) {
+  if (name) {
+    for (size_t i = 0; i < count; i++) {
+      if (strcmp(name, tests[i].name) == 0) {
+        tests[i].fn();
+        return 0;
+      }
+    }
+    fprintf(stderr, "Unknown test: %s\n", name);
+    return 1;
+  }
+
+  for (size_t i = 0; i < count; i++) {
+    tests[i].fn();
+  }
+  return 0;
+}
 
 #endif /* TEST_UTIL_H */

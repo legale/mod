@@ -43,8 +43,8 @@ $(LIBNAME): $(OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 test: dependencies $(TEST_OBJ) $(LIBNAME)
-	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	./test
+	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
+	        ./test $(TEST)
 
 main: $(MAIN_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)

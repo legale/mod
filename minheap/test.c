@@ -650,12 +650,41 @@ void test_performance_vs_list() {
   PRINT_TEST_PASSED();
 }
 
-int main(void) {
+int main(int argc, char **argv) {
 #ifdef DEBUG
   setup_syslog2("uevent_test", LOG_DEBUG, false);
 #else
   setup_syslog2("uevent_test", LOG_NOTICE, false);
 #endif
+
+  struct test_entry tests[] = {
+      {"create_and_free", test_create_and_free},
+      {"minheap_get_node", test_minheap_get_node},
+      {"mh_map_functions", test_mh_map_functions},
+      {"create_malloc_fail", test_create_malloc_fail},
+      {"insert_null_heap", test_insert_null_heap},
+      {"insert_null_node", test_insert_null_node},
+      {"insert_overflow", test_insert_overflow},
+      {"free_null", test_free_null},
+      {"extract_min_null", test_extract_min_null},
+      {"extract_min_empty", test_extract_min_empty},
+      {"get_min_null", test_get_min_null},
+      {"get_min_empty", test_get_min_empty},
+      {"is_empty_null", test_is_empty_null},
+      {"get_size_null", test_get_size_null},
+      {"delete_value_null_heap", test_delete_value_null_heap},
+      {"delete_value_null_node", test_delete_value_null_node},
+      {"delete_value_not_in_heap", test_delete_value_not_in_heap},
+      {"insert_and_get_min", test_insert_and_get_min},
+      {"extract_min_order", test_extract_min_order},
+      {"boundary_and_error_cases", test_boundary_and_error_cases},
+      {"update_node_key", test_update_node_key},
+      {"stress_random_operations", test_stress_random_operations},
+      {"performance_vs_list", test_performance_vs_list}};
+
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (argc > 1 || rc)
+    return rc;
 
   test_create_and_free();
   test_minheap_get_node();
@@ -682,5 +711,5 @@ int main(void) {
   test_performance_vs_list();
 
   printf(KGRN "====== All minheap tests passed! ======\n" KNRM);
-  return 0;
+  return rc;
 }

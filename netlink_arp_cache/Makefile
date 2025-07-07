@@ -46,8 +46,8 @@ main: main.o $(LIBNAME)
 .PRECIOUS: test
 
 test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
-	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	./test
+        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
+        ./test $(TEST)
 
 main.o: main.c libnlarpcache.h ../syslog2/syslog2.h
         $(CC) $(CFLAGS) -c main.c

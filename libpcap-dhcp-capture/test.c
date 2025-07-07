@@ -37,10 +37,14 @@ static void test_tok2str(void) {
   PRINT_TEST_PASSED();
 }
 
-int main(void) {
-  test_calc_vendor_specific_size();
-  test_parse_vendor_specific_option_12();
-  test_tok2str();
-  printf(KGRN "====== All libpcap-dhcp-capture tests passed! ======\n" KNRM);
-  return 0;
+int main(int argc, char **argv) {
+  struct test_entry tests[] = {
+      {"calc_vendor_specific_size", test_calc_vendor_specific_size},
+      {"parse_vendor_specific_option_12", test_parse_vendor_specific_option_12},
+      {"tok2str", test_tok2str}};
+
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All libpcap-dhcp-capture tests passed! ======\n" KNRM);
+  return rc;
 }

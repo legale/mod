@@ -41,8 +41,8 @@ main: $(MAIN_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
 
 test: $(TEST_OBJ) $(LIBNAME)
-	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	./test
+        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
+        ./test $(TEST)
 
 main.o: main.c pcap_dhcp.h ../syslog2/syslog2.h
         $(CC) $(CFLAGS) -c main.c

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "../test_util.h"
 
 static int log_called = 0;
 static int time_called = 0;
@@ -163,20 +164,20 @@ static void test_syslog2_mod_init(void) {
   syslog2_mod_init(NULL);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
   setup_syslog2("test_syslog2", LOG_DEBUG, false);
 
-  syslog2(LOG_INFO, "Starting test");
+  struct test_entry tests[] = {{"setlogmask2", test_setlogmask2},
+                               {"setlogmask2_edges", test_setlogmask2_edges},
+                               {"inline_pthread_set_name", test_inline_pthread_set_name},
+                               {"print_last_functions", test_print_last_functions},
+                               {"debug_call", test_debug_call},
+                               {"syslog2_printf", test_syslog2_printf},
+                               {"syslog_branch", test_syslog_branch},
+                               {"syslog2_mod_init", test_syslog2_mod_init}};
 
-  test_setlogmask2();
-  test_setlogmask2_edges();
-  test_inline_pthread_set_name();
-  test_print_last_functions();
-  test_debug_call();
-  test_syslog2_printf();
-  test_syslog_branch();
-  test_syslog2_mod_init();
-
-  printf("All syslog2 tests passed!\n");
-  return 0;
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All syslog2 tests passed! ======\n" KNRM);
+  return rc;
 }

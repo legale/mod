@@ -204,16 +204,17 @@ void test_stress_and_random_operations() {
 }
 
 // --- Главная функция для запуска всех тестов ---
-int main(void) {
-  // Принцип 6: Автоматический запуск всех тестов
-  test_create_and_free();
-  test_set_and_get_single_item();
-  test_update_existing_item();
-  test_delete_item();
-  test_get_non_existent_and_boundary_keys();
-  test_collision_handling();
-  test_stress_and_random_operations();
+int main(int argc, char **argv) {
+  struct test_entry tests[] = {{"create_and_free", test_create_and_free},
+                               {"set_and_get_single_item", test_set_and_get_single_item},
+                               {"update_existing_item", test_update_existing_item},
+                               {"delete_item", test_delete_item},
+                               {"get_non_existent_and_boundary_keys", test_get_non_existent_and_boundary_keys},
+                               {"collision_handling", test_collision_handling},
+                               {"stress_and_random_operations", test_stress_and_random_operations}};
 
-  printf(KGRN "====== All htable tests passed! ======\n" KNRM);
-  return 0;
+  int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
+  if (!rc && argc == 1)
+    printf(KGRN "====== All htable tests passed! ======\n" KNRM);
+  return rc;
 }
