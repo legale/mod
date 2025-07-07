@@ -314,108 +314,102 @@ uevent_base_t *uevent_base_new(int max_events) {
   return uevent_base_new_with_workers(max_events, UEVENT_DEFAULT_WORKERS_NUM);
 }
 
-// Создание новой базы событий с рабочими потоками
-uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
-  uevent_base_t *base = NULL;
-  int wakeup_event_fd = -1;
-
-  if ((max_events <= 0) || (num_workers < 0)) {
-    goto fail;
-  }
-
-  base = UEV_CALLOC(1, sizeof(uevent_base_t));
-  if (base == NULL) {
-    goto fail;
-  }
-
-  // создаем список для зомби событий (которые нужно освободить)
-  // uevent_zombie_list_init(base);
-
-  const uevent_t static_wakeup_tpl = {.is_static = true};
-  memcpy((void *)&base->wakeup_event, &static_wakeup_tpl, sizeof(static_wakeup_tpl));
-
+static void init_base_defaults(uevent_base_t *base, int max_events) {
+  const uevent_t tpl = {.is_static = true};
+  memcpy(&base->wakeup_event, &tpl, sizeof(tpl));
   base->max_events = max_events;
   base->epoll_fd = -1;
   base->worker_pool = NULL;
+}
 
-  base->epoll_fd = epoll_create1(0);
-  if (base->epoll_fd == -1) {
-    goto fail_calloc;
-  }
-
-  wakeup_event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-  if (wakeup_event_fd == -1) {
-    syslog2(LOG_ERR, "error: eventfd: ret=-1 error='%s'", strerror(errno));
-    goto fail_epoll_fd;
-  }
-
-  base->events = UEV_CALLOC(max_events, sizeof(struct epoll_event));
-  if (base->events == NULL) {
-    goto fail_wakeup_fd;
-  }
-
-  base->timer_heap = mh_create(max_events);
-  if (base->timer_heap == NULL) {
-    goto fail_events;
-  }
-
-  // Инициализация массива свободных слотов
-  if (uev_slots_init(base, max_events) != 0) {
-    goto fail_timer_heap;
-  }
-
-  // INIT_LIST_HEAD(&base->event_list);
-
+static void init_base_atomics(uevent_base_t *base) {
   atomic_store_explicit(&base->running, false, memory_order_release);
   atomic_store_explicit(&base->num_active_fd, 0, memory_order_release);
   atomic_store_explicit(&base->num_active_timers, 0, memory_order_release);
   atomic_store_explicit(&base->stopped, true, memory_order_release);
+}
 
-  if (pthread_mutex_init(&base->base_mut, NULL) != 0) {
-    goto fail_free_slots;
+static int prepare_base_components(uevent_base_t *base,
+                                  int max_events,
+                                  int num_workers,
+                                  int *wakeup_fd) {
+  base->epoll_fd = epoll_create1(0);
+  if (base->epoll_fd == -1) return -1;
+
+  *wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+  if (*wakeup_fd == -1) {
+    syslog2(LOG_ERR, "error: eventfd: ret=-1 error='%s'", strerror(errno));
+    return -1;
   }
-  if (pthread_cond_init(&base->base_cond, NULL) != 0) {
-    goto fail_base_mut;
-  }
+
+  base->events = UEV_CALLOC(max_events, sizeof(struct epoll_event));
+  if (!base->events) return -1;
+
+  base->timer_heap = mh_create(max_events);
+  if (!base->timer_heap) return -1;
+
+  if (uev_slots_init(base, max_events) != 0) return -1;
+
+  if (pthread_mutex_init(&base->base_mut, NULL) != 0) return -1;
+  if (pthread_cond_init(&base->base_cond, NULL) != 0) return -1;
 
   if (num_workers > 0) {
     base->worker_pool = uevent_worker_pool_create(num_workers);
-    if (base->worker_pool == NULL) {
-      syslog2(LOG_ERR, "Failed to create uevent worker pool");
-      goto fail_base_cond;
-    }
+    if (base->worker_pool == NULL) return -1;
   }
 
-  uev_t *uev = uevent_create_or_assign_event(&base->wakeup_event, base, wakeup_event_fd, UEV_READ | UEV_PERSIST, wakeup_fd_read_cb, NULL, "wakeup_event");
-  if (uev == NULL) {
-    goto fail_worker_pool;
-  }
-  uevent_add(uev, 0);
+  return 0;
+}
 
-  return base;
-
-fail_worker_pool:
-  if (num_workers > 0) {
+static void cleanup_base_components(uevent_base_t *base, int wakeup_fd) {
+  if (base->worker_pool) {
     uevent_worker_pool_destroy(base->worker_pool);
+    base->worker_pool = NULL;
   }
-fail_base_cond:
   pthread_cond_destroy(&base->base_cond);
-fail_base_mut:
   pthread_mutex_destroy(&base->base_mut);
-fail_free_slots:
   uev_slots_deinit(base);
-fail_timer_heap:
-  mh_free(base->timer_heap);
-fail_events:
+  if (base->timer_heap) mh_free(base->timer_heap);
   free(base->events);
-fail_wakeup_fd:
-  close(wakeup_event_fd);
-fail_epoll_fd:
-  close(base->epoll_fd);
-fail_calloc:
-  free(base);
-fail:
-  return NULL;
+  if (wakeup_fd != -1) close(wakeup_fd);
+  if (base->epoll_fd != -1) close(base->epoll_fd);
+}
+
+// Создание новой базы событий с рабочими потоками
+uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
+  if ((max_events <= 0) || (num_workers < 0)) {
+    return NULL;
+  }
+
+  uevent_base_t *base = UEV_CALLOC(1, sizeof(uevent_base_t));
+  if (!base) return NULL;
+
+  init_base_defaults(base, max_events);
+  init_base_atomics(base);
+
+  int wakeup_event_fd = -1;
+  if (prepare_base_components(base, max_events, num_workers, &wakeup_event_fd) !=
+      0) {
+    cleanup_base_components(base, wakeup_event_fd);
+    free(base);
+    return NULL;
+  }
+
+  uev_t *uev = uevent_create_or_assign_event(&base->wakeup_event,
+                                             base,
+                                             wakeup_event_fd,
+                                             UEV_READ | UEV_PERSIST,
+                                             wakeup_fd_read_cb,
+                                             NULL,
+                                             "wakeup_event");
+  if (!uev) {
+    cleanup_base_components(base, wakeup_event_fd);
+    free(base);
+    return NULL;
+  }
+
+  uevent_add(uev, 0);
+  return base;
 }
 
 void uevent_set_timeout(uev_t *uev, int timeout_ms) {
@@ -960,6 +954,35 @@ static void dump_timer_heap(uevent_base_t *base) {
   pthread_mutex_unlock(&base->base_mut);
 }
 
+static int epoll_wait_and_dispatch(uevent_base_t *base, int epoll_timeout) {
+  uint64_t mark = tu_clock_gettime_monotonic_fast_ms();
+  int nfds = epoll_wait(base->epoll_fd, base->events, base->max_events,
+                        epoll_timeout);
+  uint64_t now = tu_clock_gettime_monotonic_fast_ms();
+  int64_t slept_ms = (int64_t)now - (int64_t)mark;
+  syslog2(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "",
+          epoll_timeout, slept_ms);
+
+  if (nfds == -1) {
+    if (errno == EINTR) return 0;
+    syslog2(LOG_ERR, "epoll_wait failed: %s", strerror(errno));
+    return -1;
+  }
+
+  uevent_handle_timers(base);
+  if (nfds > 0) {
+    uevent_handle_epoll(base, nfds);
+  }
+  return 0;
+}
+
+static void mark_base_stopped(uevent_base_t *base) {
+  pthread_mutex_lock(&base->base_mut);
+  atomic_store_explicit(&base->stopped, true, memory_order_release);
+  pthread_cond_signal(&base->base_cond);
+  pthread_mutex_unlock(&base->base_mut);
+}
+
 int uevent_base_dispatch(uevent_base_t *base) {
   FUNC_START_DEBUG;
   if (base == NULL) {
@@ -969,50 +992,28 @@ int uevent_base_dispatch(uevent_base_t *base) {
   TMARK(0, "START");
   atomic_store_explicit(&base->running, true, memory_order_release);
   atomic_store_explicit(&base->stopped, false, memory_order_release);
+
   while (atomic_load_explicit(&base->running, memory_order_acquire)) {
     dump_timer_heap(base);
-    // uevent_zombie_list_purge(base);
-
     if (!uevent_base_has_events(base)) {
       syslog2(LOG_DEBUG, "no active events left, breaking event loop.");
       atomic_store_explicit(&base->running, false, memory_order_release);
       break;
     }
+
     TMARK(10, "uevent_base_has_events");
     int epoll_timeout = calculate_epoll_timeout(base);
     TMARK(10, "calculate_epoll_timeout");
-    uint64_t __t_mark = tu_clock_gettime_monotonic_fast_ms();
-    int nfds = epoll_wait(base->epoll_fd, base->events, base->max_events, epoll_timeout);
-    uint64_t __t_now = tu_clock_gettime_monotonic_fast_ms();
-    int64_t slept_ms = (int64_t)__t_now - (int64_t)__t_mark;
-    __t_mark = __t_now;
-    syslog2(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "", epoll_timeout, slept_ms);
-
-    TMARK(epoll_timeout + 10, "epoll_wait");
-    if (nfds == -1) {
-      if (errno == EINTR) {
-        continue;
-      }
-      syslog2(LOG_ERR, "epoll_wait failed: %s", strerror(errno));
+    if (epoll_wait_and_dispatch(base, epoll_timeout) != 0) {
+      mark_base_stopped(base);
       return UEV_ERR_EPOLL;
     }
-    uevent_handle_timers(base);
-    TMARK(10, "uevent_handle_timers");
-    if (nfds > 0) {
-      uevent_handle_epoll(base, nfds);
-      TMARK(10, "uevent_handle_epoll");
-    }
+    TMARK(10, "epoll_wait_and_dispatch");
   }
 
   uevent_worker_pool_wait_for_idle(base->worker_pool);
   TMARK(10, "FINISH");
-
-  // берем мьютекс, чтобы после сигнала другой поток не успел раньше
-  pthread_mutex_lock(&base->base_mut);
-  atomic_store_explicit(&base->stopped, true, memory_order_release);
-  pthread_cond_signal(&base->base_cond);
-  pthread_mutex_unlock(&base->base_mut);
-
+  mark_base_stopped(base);
   return UEV_ERR_OK;
 }
 
