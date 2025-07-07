@@ -72,8 +72,9 @@ make test TEST=msleep_accuracy
 ```
 
 A dedicated performance test named `perf_custom_vs_system` compares the
-execution time of `tu_clock_gettime_monotonic_fast` with the standard
-`clock_gettime` implementation and prints absolute and relative results:
+execution time of the fast helpers with the standard `clock_gettime`
+implementation for both monotonic and realtime clocks. The results are
+printed in absolute values and percentages:
 
 ```sh
 cd timeutil
