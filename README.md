@@ -86,3 +86,13 @@ The optional Makefile in the repository root aggregates common actions:
 - `make clean` – remove build artefacts in all modules.
 
 Use it as a convenience wrapper instead of invoking `make` in each subdirectory.
+
+## CI Script
+
+The `ci.sh` helper script runs `clang-tidy` over all `*.c` and `*.h` files and
+then executes the full test suite. Make sure `clang-tidy` is installed before
+invoking it:
+
+```sh
+./ci.sh
+```
