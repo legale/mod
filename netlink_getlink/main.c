@@ -4,7 +4,7 @@
 
 #include "libnl_getlink.h"
 #include "slist.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 #include "leak_detector_c.h"
 
@@ -73,7 +73,7 @@ static void free_netdev_list3(struct slist_head *list) {
 }
 
 int main() {
-  setup_syslog2(LOG_NOTICE, false);
+  setup_syslog2("getlink", LOG_NOTICE, false);
 
   struct slist_head list;
   INIT_SLIST_HEAD(&list);

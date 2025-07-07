@@ -14,11 +14,10 @@
 #include <sys/stat.h> // fchmod
 #include <sys/time.h> /* timeval_t struct */
 #include <sys/types.h>
-#include <syslog.h>
 #include <unistd.h>
 
 #include "libnl_getlink.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 #include "leak_detector_c.h"
 

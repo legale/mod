@@ -3,7 +3,7 @@
 #include <sys/time.h> /* timeval_t struct */
 
 #include "libnlarpcache.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len) {
   /* loop over all rtattributes */

@@ -6,6 +6,8 @@ BD = ./build
 # Linker flags
 LDLIBS += -lpcap
 LDDIRS += -L$(BD)
+LDFLAGS += -L../syslog2 -L../timeutil
+LIBS += -lsyslog2 -ltimeutil
 
 # Compiler flags
 CFLAGS += -Wall -Wextra -O2 -Wno-unused-parameter
@@ -20,7 +22,7 @@ AR = ar
 
 # SRC=$(wildcard *.c)
 LIBNAME = pcap_dhcp
-SRC_LIB = pcap_dhcp.c syslog.c 
+SRC_LIB = pcap_dhcp.c
 SRC_BIN = main.c
 ifdef LEAKCHECK
 SRC_BIN += leak_detector_c.c 
@@ -39,10 +41,10 @@ $(BD)/lib$(LIBNAME).a: $(OBJ_LIB)
 	$(AR) rcs $@ $^
 
 $(BD)/$(NAME)_shared: $(OBJ_BIN) $(BD)/lib$(LIBNAME).so
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $^ -o $@ $(LDLIBS)
+        $(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDFLAGS) $^ -o $@ $(LDLIBS) $(LIBS)
 
 $(BD)/$(NAME)_static: $(OBJ_BIN) $(BD)/lib$(LIBNAME).a
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) -Wl,-Bstatic -l$(LIBNAME) -Wl,-Bdynamic $^ -o $@ $(LDLIBS)
+        $(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDFLAGS) -Wl,-Bstatic -l$(LIBNAME) -Wl,-Bdynamic $^ -o $@ $(LDLIBS) $(LIBS)
 
 $(BD)/%.o: %.c
 	$(CC) $(CFLAGS) $(I) -c $< -o $@
@@ -52,7 +54,7 @@ $(BD)/%.pic.o: %.c
 	$(CC) $(CFLAGS) $(I) -c $< -o $@ -fPIC
 
 $(BD)/lib$(LIBNAME).so: $(OBJ_LIB_PIC)
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $^ -shared -fPIC -o $@ $(LDLIBS)
+        $(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDFLAGS) $^ -shared -fPIC -o $@ $(LDLIBS) $(LIBS)
 
 clean:
 	rm -rf $(BD)/*

@@ -7,7 +7,7 @@
 #include <linux/rtnetlink.h>
 
 #include "libnlarpcache.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 
 /* cli arguments parse macro and functions */

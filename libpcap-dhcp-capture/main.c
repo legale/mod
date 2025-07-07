@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #include "pcap_dhcp.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 /* cli arguments parse macro and functions */
 #define NEXT_ARG()                         \
