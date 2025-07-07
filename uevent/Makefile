@@ -46,6 +46,9 @@ ifeq ($(MAKECMDGOALS),robust_test)
 else ifeq ($(MAKECMDGOALS),simple)
 	CFLAGS := $(CFLAGS)
 	LDFLAGS := $(LDFLAGS)
+else ifeq ($(MAKECMDGOALS),test_simple)
+	CFLAGS := $(CFLAGS)
+	LDFLAGS := $(LDFLAGS)
 else ifeq ($(MAKECMDGOALS),perf)
 	CFLAGS := $(CFLAGS) $(CFLAGS_TEST)
 	LDFLAGS := $(LDFLAGS) $(LDFLAGS_TEST)
@@ -58,6 +61,8 @@ endif
 all: $(MAIN) $(LIB)
 
 simple: $(MAIN) $(LIB)
+
+test_simple: test
 
 # Компиляция основного приложения
 $(MAIN): $(MAIN_OBJS)
