@@ -14,6 +14,15 @@
 #include <stdint.h>
 #include <time.h>
 
+typedef struct {
+  void (*log)(int level, const char *fmt, ...);
+  int (*clock_gettime_fn)(clockid_t clk_id, struct timespec *tp);
+  int (*nanosleep_fn)(const struct timespec *req, struct timespec *rem);
+  time_t (*time_fn)(time_t *tloc);
+} timeutil_mod_init_args_t;
+
+int timeutil_mod_init(const timeutil_mod_init_args_t *args);
+
 #define NS_PER_USEC 1000U
 #define USEC_PER_MS 1000U
 #define MS_PER_SEC 1000U
