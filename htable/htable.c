@@ -1,5 +1,5 @@
 #include "htable.h"
-#include "../list.h"
+#include "../list/list.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

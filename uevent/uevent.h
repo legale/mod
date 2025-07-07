@@ -1,7 +1,7 @@
 #ifndef LIBUEVENT_UEVENT_H
 #define LIBUEVENT_UEVENT_H
 
-#include "../list.h"
+#include "../list/list.h"
 #include "../minheap/minheap.h"
 #include "../syslog2/syslog2.h"
 #include "../timeutil/timeutil.h"
