@@ -37,7 +37,7 @@ void reset_clock_gettime_sequence(void) {
 void set_nanosleep_fail(int enable) { fail_nanosleep = enable; }
 void set_time_fail(int enable) { fail_time_call = enable; }
 
-int clock_gettime(clockid_t clk_id, struct timespec *tp) {
+static int test_clock_gettime(clockid_t clk_id, struct timespec *tp) {
   if (fail_clock_gettime) {
     errno = EINVAL;
     return -1;
@@ -49,7 +49,7 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp) {
   return syscall(SYS_clock_gettime, clk_id, tp);
 }
 
-int nanosleep(const struct timespec *req, struct timespec *rem) {
+static int test_nanosleep(const struct timespec *req, struct timespec *rem) {
   if (fail_nanosleep) {
     if (rem) {
       *rem = *req;
@@ -328,6 +328,12 @@ static void test_timezone_offset_fail(void) {
 }
 
 int main(void) {
+  timeutil_mod_init_args_t args = {0};
+#ifdef TESTRUN
+  args.get_time = test_clock_gettime;
+  args.sleep_fn = test_nanosleep;
+#endif
+  timeutil_mod_init(&args);
   tu_init();
 
   test_msleep_accuracy();
