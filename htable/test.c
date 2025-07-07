@@ -5,18 +5,7 @@
 #include <string.h>
 #include <time.h>
 
-// --- Макросы для вывода, по аналогии с uevent ---
-#define KNRM "\x1B[0m"
-#define KRED "\x1B[31m"
-#define KGRN "\x1B[32m"
-#define KYEL "\x1B[33m"
-#define KCYN "\x1B[36m"
-
-#define PRINT_TEST_START(name) \
-  printf(KCYN "--- Starting Test: %s ---\n" KNRM, name)
-#define PRINT_TEST_PASSED() printf(KGRN "--- Test Passed ---\n\n" KNRM)
-#define PRINT_TEST_INFO(fmt, ...) \
-  printf(KYEL "[INFO] " fmt "\n" KNRM, ##__VA_ARGS__)
+#include "../test_util.h"
 
 // --- Юнит-тесты ---
 

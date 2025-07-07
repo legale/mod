@@ -9,8 +9,9 @@
 #include <stdarg.h>      // va_list, va_start(), va_end()
 #include <stdio.h>       // printf()
 #include <sys/syscall.h> // SYS_gettid
-#include <syslog.h>      // syslog()
 #include <unistd.h>      // syscall()
+
+#include "../syslog2/syslog2.h"
 
 #include "slist.h"
 

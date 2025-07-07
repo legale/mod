@@ -1,19 +1,12 @@
 #include "pcap_dhcp.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-#define KNRM "\x1B[0m"
-#define KGRN "\x1B[32m"
-#define KYEL "\x1B[33m"
-#define KCYN "\x1B[36m"
-
-#define PRINT_TEST_START(name) \
-  printf(KCYN "%s:%d --- Starting Test: %s ---\n" KNRM, __FILE__, __LINE__, name)
-#define PRINT_TEST_PASSED() printf(KGRN "--- Test Passed ---\n\n" KNRM)
+#include "../test_util.h"
 
 static void test_calc_vendor_specific_size(void) {
   PRINT_TEST_START("calc_vendor_specific_size");
