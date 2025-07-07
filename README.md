@@ -12,6 +12,12 @@ This repository contains several small C libraries and utilities. Each module li
 - **syslog2** – lightweight asynchronous logging helper.
 - **timeutil** – helper routines for measuring time and pausing execution.
 - **uevent** – event loop implementation built on `epoll`.
+- **netlink_arp_cache** – small helper for parsing netlink ARP replies.
+- **libpcap-dhcp-capture** – capture DHCP packets using libpcap.
+- **hashtable-linux-kernel** – Linux kernel inspired hash table experiments.
+
+Many networking helpers rely on the `syslog2` library for logging instead of
+shipping their own implementations.
 
 ## Running Tests
 
@@ -30,6 +36,10 @@ make coverage
 ```
 
 The `uevent` module offers a `check` target which runs both regular and robust tests.
+
+A small `test_util.h` header at the repository root defines common macros for
+colored output in tests. All test programs include it to keep style
+consistent.
 
 ## Root Makefile
 

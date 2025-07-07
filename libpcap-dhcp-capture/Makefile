@@ -3,11 +3,11 @@ CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sect
 AR = ar
 ARFLAGS = rcs
 LIBNAME = libpcap_dhcp.a
-OBJ = pcap_dhcp.o syslog.o
+OBJ = pcap_dhcp.o
 TEST_OBJ = test.o
 MAIN_OBJ = main.o
-LDFLAGS = -L.
-LIBS = -lpcap_dhcp -lpcap
+LDFLAGS = -L. -L../syslog2
+LIBS = -lpcap_dhcp -lpcap -lsyslog2
 
 COV_CFLAGS = \
   $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
@@ -33,11 +33,9 @@ all: $(LIBNAME) main test
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
 
-pcap_dhcp.o: pcap_dhcp.c pcap_dhcp.h syslog.h
-	$(CC) $(CFLAGS) -c pcap_dhcp.c
+pcap_dhcp.o: pcap_dhcp.c pcap_dhcp.h ../syslog2/syslog2.h
+        $(CC) $(CFLAGS) -c pcap_dhcp.c
 
-syslog.o: syslog.c syslog.h
-	$(CC) $(CFLAGS) -c syslog.c
 
 main: $(MAIN_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
@@ -46,8 +44,8 @@ test: $(TEST_OBJ) $(LIBNAME)
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	./test
 
-main.o: main.c pcap_dhcp.h syslog.h
-	$(CC) $(CFLAGS) -c main.c
+main.o: main.c pcap_dhcp.h ../syslog2/syslog2.h
+        $(CC) $(CFLAGS) -c main.c
 
 test.o: test.c pcap_dhcp.h
 	$(CC) $(CFLAGS) -c test.c

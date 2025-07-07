@@ -2,13 +2,13 @@ CC = gcc
 CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
 AR = ar
 ARFLAGS = rcs
-LIBNAME = libnl_getlink.a
-OBJ = libnl_getlink.o syslog.o
+	LIBNAME = libnl_getlink.a
+OBJ = libnl_getlink.o
 TEST_OBJ = test.o
 MAIN_OBJ = main.o
 
-LDFLAGS = -L.
-LIBS = -lnl_getlink
+LDFLAGS = -L. -L../syslog2 -L../timeutil
+LIBS = -lnl_getlink -lsyslog2 -ltimeutil
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -30,26 +30,27 @@ endif
 
 all: $(LIBNAME) main test
 
+../syslog2/libsyslog2.a:
+	$(MAKE) -C ../syslog2 all
+
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
 
-libnl_getlink.o: libnl_getlink.c libnl_getlink.h slist.h syslog.h
+libnl_getlink.o: libnl_getlink.c libnl_getlink.h slist.h ../syslog2/syslog2.h
 	$(CC) $(CFLAGS) -c libnl_getlink.c
 
-syslog.o: syslog.c syslog.h
-	$(CC) $(CFLAGS) -c syslog.c
 
-main: $(MAIN_OBJ) $(LIBNAME)
+main: $(MAIN_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
 
-test: $(TEST_OBJ) $(LIBNAME)
+test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	./test
 
-main.o: main.c libnl_getlink.h slist.h syslog.h
+main.o: main.c libnl_getlink.h slist.h ../syslog2/syslog2.h
 	$(CC) $(CFLAGS) -c main.c
 
-test.o: test.c libnl_getlink.h slist.h syslog.h
+test.o: test.c libnl_getlink.h slist.h ../syslog2/syslog2.h
 	$(CC) $(CFLAGS) -c test.c
 
 .PRECIOUS: test

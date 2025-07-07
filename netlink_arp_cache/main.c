@@ -7,7 +7,7 @@
 #include <linux/rtnetlink.h>
 
 #include "libnlarpcache.h"
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 #define NEXT_ARG() do { argv++; if (--argc <= 0) incomplete_command(); } while(0)
 #define NEXT_ARG_OK() (argc - 1 > 0)

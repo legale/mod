@@ -1,7 +1,5 @@
 #include "pcap_dhcp.h"
-#include <syslog.h>
-
-#include "syslog.h"
+#include "../syslog2/syslog2.h"
 
 #include "leak_detector_c.h"
 

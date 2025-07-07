@@ -3,12 +3,12 @@ CFLAGS = -Wall -Wextra -O3 -ffunction-sections -fdata-sections -ggdb
 AR = ar
 ARFLAGS = rcs
 LIBNAME = libnlarpcache.a
-OBJ = libnlarpcache.o syslog.o
+OBJ = libnlarpcache.o
 TEST_OBJ = test.o
 MAIN_OBJ = main.o
 
-LDFLAGS = -L.
-LIBS = -lnlarpcache
+LDFLAGS = -L. -L../syslog2 -L../timeutil
+LIBS = -lnlarpcache -lsyslog2 -ltimeutil
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -29,30 +29,31 @@ ifeq ($(MAKECMDGOALS),coverage)
 endif
 
 all: $(LIBNAME) main test
+../syslog2/libsyslog2.a:
+	$(MAKE) -C ../syslog2 all
+
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $@ $^
 
-libnlarpcache.o: libnlarpcache.c libnlarpcache.h
-	$(CC) $(CFLAGS) -c libnlarpcache.c
+libnlarpcache.o: libnlarpcache.c libnlarpcache.h ../syslog2/syslog2.h
+        $(CC) $(CFLAGS) -c libnlarpcache.c
 
-syslog.o: syslog.c syslog.h
-	$(CC) $(CFLAGS) -c syslog.c
 
 main: main.o $(LIBNAME)
-	$(CC) $(CFLAGS) main.o -o main $(LDFLAGS) $(LIBS)
+        $(CC) $(CFLAGS) main.o -o main $(LDFLAGS) $(LIBS)
 
 .PRECIOUS: test
 
-test: $(TEST_OBJ) $(LIBNAME)
+test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
 	$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	./test
 
-main.o: main.c libnlarpcache.h
-	$(CC) $(CFLAGS) -c main.c
+main.o: main.c libnlarpcache.h ../syslog2/syslog2.h
+        $(CC) $(CFLAGS) -c main.c
 
 test.o: test.c libnlarpcache.h
-	$(CC) $(CFLAGS) -c test.c
+        $(CC) $(CFLAGS) -c test.c
 
 perf: test
 	@echo "Running valgrind callgrind profiler..."
