@@ -3,6 +3,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
+
+static void (*log_func)(int, const char *, ...) = NULL;
+static int (*get_time_func)(struct timespec *) = NULL;
+
+int htable_mod_init(const htable_mod_init_args_t *args) {
+  if (!args) {
+    log_func = NULL;
+    get_time_func = NULL;
+    return 0;
+  }
+  log_func = args->log;
+  get_time_func = args->get_time;
+  return 0;
+}
 
 // Хеш-функция по ключу
 static inline unsigned int htable_hash(uintptr_t key, size_t capacity) {

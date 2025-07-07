@@ -10,6 +10,8 @@
 #define free(mem_ref) xfree(mem_ref)
 #endif
 
+#include <time.h>
+
 struct _MEM_INFO {
   void *address;
   unsigned int size;
@@ -33,5 +35,12 @@ void xfree(void *mem_ref);
 void add_mem_info(void *mem_ref, unsigned int size, const char *file, unsigned int line);
 void remove_mem_info(void *mem_ref);
 void report_mem_leak(void);
+
+typedef struct {
+  void (*log)(int, const char *, ...);
+  int (*get_time)(struct timespec *);
+} leak_detector_mod_init_args_t;
+
+int leak_detector_mod_init(const leak_detector_mod_init_args_t *args);
 
 #endif

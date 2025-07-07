@@ -12,6 +12,21 @@
 #include <sys/epoll.h>
 #include <time.h>
 
+typedef void (*uevent_log_fn_t)(int, const char *, ...);
+typedef uint64_t (*uevent_time_ms_fn_t)(void);
+
+typedef struct {
+  uevent_log_fn_t log;
+  uevent_time_ms_fn_t time_ms;
+} uevent_mod_init_args_t;
+
+int uevent_mod_init(const uevent_mod_init_args_t *args);
+
+extern uevent_log_fn_t uevent_log_hook;
+extern uevent_time_ms_fn_t uevent_time_ms_hook;
+
+#define uevent_log(...) uevent_log_hook(__VA_ARGS__)
+
 // макросы для атомарных операций
 #define ATOM_LOAD_RELAX(ptr) atomic_load_explicit((&(ptr)), memory_order_relaxed)
 #define ATOM_LOAD_ACQ(ptr) atomic_load_explicit((&(ptr)), memory_order_acquire)
@@ -63,25 +78,25 @@ typedef struct uevent_base_t uevent_base_t;
  */
 #define UEV_TIMEOUT_FROM_EVENT -2
 
-#define TINIT                                         \
-  uint64_t __t_start = 0;                             \
-  uint64_t __t_mark = 0;                              \
-  do {                                                \
-    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;  \
-    __t_start = tu_clock_gettime_monotonic_fast_ms(); \
-    __t_mark = __t_start;                             \
+#define TINIT                                               \
+  uint64_t __t_start = 0;                                   \
+  uint64_t __t_mark = 0;                                    \
+  do {                                                      \
+    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;        \
+    __t_start = get_current_time_ms();                      \
+    __t_mark = __t_start;                                   \
   } while (0)
 
-#define TMARK(thr_ms, comment)                               \
-  do {                                                       \
-    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;         \
-    uint64_t __t_now = tu_clock_gettime_monotonic_fast_ms(); \
-    uint64_t __t_diff = __t_now - __t_mark;                  \
-    if (!(thr_ms) || (__t_diff > (uint64_t)(thr_ms))) {      \
-      syslog2(LOG_DEBUG, "[TMARK] %s delay_ms=%" PRIu64 "",  \
-              (comment), __t_diff);                          \
-    }                                                        \
-    __t_mark = __t_now;                                      \
+#define TMARK(thr_ms, comment)                                     \
+  do {                                                             \
+    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;               \
+    uint64_t __t_now = get_current_time_ms();                      \
+    uint64_t __t_diff = __t_now - __t_mark;                        \
+    if (!(thr_ms) || (__t_diff > (uint64_t)(thr_ms))) {            \
+      uevent_log(LOG_DEBUG, "[TMARK] %s delay_ms=%" PRIu64 "",       \
+                 (comment), __t_diff);                              \
+    }                                                              \
+    __t_mark = __t_now;                                            \
   } while (0)
 
 /* Структура для события */

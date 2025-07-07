@@ -120,6 +120,28 @@ void run_test_in_fork_that_should_crash(void (*test_func)(void)) {
   }
 }
 
+// Test uevent_mod_init with custom hooks
+static int mock_log_calls = 0;
+static void mock_log(int pri, const char *fmt, ...) {
+  (void)pri;
+  (void)fmt;
+  mock_log_calls++;
+}
+
+static uint64_t mock_time_ms(void) { return 42; }
+
+void test_mod_init(void) {
+  PRINT_TEST_START("uevent_mod_init overrides");
+  uevent_mod_init_args_t args = {.log = mock_log, .time_ms = mock_time_ms};
+  mock_log_calls = 0;
+  uevent_mod_init(&args);
+  assert(get_current_time_ms() == 42);
+  uevent_log(LOG_DEBUG, "test");
+  assert(mock_log_calls == 1);
+  uevent_mod_init(NULL);
+  PRINT_TEST_PASSED();
+}
+
 // =============================================================================
 // ТЕСТЫ
 // =============================================================================
@@ -1517,6 +1539,8 @@ int main() {
 #else
   setup_syslog2("uevent_test", LOG_NOTICE, false);
 #endif
+
+  test_mod_init();
 
   test_static_persist_timer_recreate();
   test_real_world_load_simulation();
