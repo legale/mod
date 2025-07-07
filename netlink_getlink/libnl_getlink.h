@@ -14,6 +14,8 @@
 
 #include "../syslog2/syslog2.h"
 
+#include <time.h>
+
 #include "slist.h"
 
 #ifndef IFNAMSIZ
@@ -43,15 +45,20 @@ typedef struct nl_req {
   struct rtgenmsg gen;
 } nl_req_s;
 
-int get_netdev(struct slist_head *list);
-netdev_item_t *ll_get_by_index(struct slist_head *list, int index);
-void free_netdev_list(struct slist_head *list);
+typedef void (*netlink_getlink_log_fn_t)(int, const char *, const char *, int,
+                                         const char *, bool, ...);
 
-typedef struct {
-  void (*log)(int, const char *, ...);
-  int (*get_time)(struct timespec *);
+typedef int (*netlink_getlink_time_fn_t)(clockid_t, struct timespec *);
+
+typedef struct netlink_getlink_mod_init_args_t {
+  netlink_getlink_log_fn_t log;
+  netlink_getlink_time_fn_t get_time;
 } netlink_getlink_mod_init_args_t;
 
 int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
+
+int get_netdev(struct slist_head *list);
+netdev_item_t *ll_get_by_index(struct slist_head *list, int index);
+void free_netdev_list(struct slist_head *list);
 
 #endif // NETLINK_GET_ADDR_LIBNL_GETLINK_H

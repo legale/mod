@@ -13,28 +13,27 @@
 #include <sys/socket.h>
 #include <sys/stat.h> // fchmod
 #include <sys/time.h> /* timeval_t struct */
+#include <time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <time.h>
 
 #include "libnl_getlink.h"
 #include "../syslog2/syslog2.h"
 
-static void (*log_func)(int, const char *, ...) = NULL;
-static int (*get_time_func)(struct timespec *) = NULL;
-
-int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
-  if (!args) {
-    log_func = NULL;
-    get_time_func = NULL;
-    return 0;
-  }
-  log_func = args->log;
-  get_time_func = args->get_time;
-  return 0;
-}
-
 #include "../leak_detector_c/leak_detector.h"
+
+static netlink_getlink_log_fn_t log_func = syslog2_;
+static netlink_getlink_time_fn_t time_func = clock_gettime;
+static bool nlgl_initialized = false;
+
+int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
+static void ensure_initialized(void);
+
+static void ensure_initialized(void) {
+  if (!nlgl_initialized) {
+    netlink_getlink_mod_init(NULL);
+  }
+}
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))
@@ -80,7 +79,8 @@ static int addattr_l(struct nlmsghdr *n, unsigned int maxlen, int type, const vo
   struct rtattr *rta;
 
   if (NLMSG_ALIGN(n->nlmsg_len) + RTA_ALIGN(len) > maxlen) {
-    syslog2(LOG_NOTICE, "addattr_l ERROR: message exceeded bound of %d", maxlen);
+    log_func(LOG_NOTICE, __func__, __FILENAME__, __LINE__,
+             "addattr_l ERROR: message exceeded bound of %d", true, maxlen);
     return -1;
   }
   rta = NLMSG_TAIL(n);
@@ -97,6 +97,7 @@ int addattr32(struct nlmsghdr *n, unsigned int maxlen, int type, __u32 data) {
 }
 
 void free_netdev_list(struct slist_head *list) {
+  ensure_initialized();
   FUNC_START_DEBUG;
   netdev_item_t *item = NULL;
   netdev_item_t *tmp = NULL;
@@ -109,6 +110,7 @@ void free_netdev_list(struct slist_head *list) {
 }
 
 netdev_item_t *ll_get_by_index(struct slist_head *list, int index) {
+  ensure_initialized();
   // FUNC_START_DEBUG;
   netdev_item_t *item;
   slist_for_each_entry(item, list, list) {
@@ -134,13 +136,16 @@ static int send_msg() {
   };
   int err = addattr32(&req.nlh, sizeof(req), IFLA_EXT_MASK, RTEXT_FILTER_VF);
   if (err) {
-    syslog2(LOG_ERR, "%s addattr32(&req.nlh, sizeof(req), IFLA_EXT_MASK, RTEXT_FILTER_VF)", strerror(errno));
+    log_func(LOG_ERR, __func__, __FILENAME__, __LINE__,
+             "%s addattr32(&req.nlh, sizeof(req), IFLA_EXT_MASK, RTEXT_FILTER_VF)",
+             true, strerror(errno));
     return -1;
   }
 
   int sd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE); /* open socket */
   if (sd < 0) {
-    syslog2(LOG_ERR, "%s socket()", strerror(errno));
+    log_func(LOG_ERR, __func__, __FILENAME__, __LINE__, "%s socket()", true,
+             strerror(errno));
     return -1;
   }
   fchmod(sd, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
@@ -160,7 +165,8 @@ static int send_msg() {
   status = send(sd, &req, req.nlh.nlmsg_len, 0);
   if (status < 0) {
     status = errno;
-    syslog2(LOG_NOTICE, "%s send()", strerror(errno));
+    log_func(LOG_NOTICE, __func__, __FILENAME__, __LINE__, "%s send()", true,
+             strerror(errno));
     close(sd); /* close socket */
     return -1;
   }
@@ -191,10 +197,12 @@ static ssize_t recv_msg(int sd, void **buf) {
     return ret;
   } else if (ret < 0) {
     if (errno == EINTR) {
-      syslog2(LOG_WARNING, "select EINTR");
+      log_func(LOG_WARNING, __func__, __FILENAME__, __LINE__, "select EINTR",
+               true);
       return ret;
     }
-    syslog2(LOG_ERR, "select error=%s", strerror(errno));
+    log_func(LOG_ERR, __func__, __FILENAME__, __LINE__, "select error=%s", true,
+             strerror(errno));
     return ret;
   }
 
@@ -223,7 +231,8 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
 
   for (nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
     if (counter > 100) {
-      syslog2(LOG_ALERT, "counter %zu > 100", counter);
+      log_func(LOG_ALERT, __func__, __FILENAME__, __LINE__,
+               "counter %zu > 100", true, counter);
       break;
     }
 
@@ -257,7 +266,8 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
     if (!dev) {
       dev = calloc(1, sizeof(netdev_item_t));
       if (!dev) {
-        syslog2(LOG_ALERT, "Failed to allocate memory for netdev_item_s.");
+        log_func(LOG_ALERT, __func__, __FILENAME__, __LINE__,
+                 "Failed to allocate memory for netdev_item_s.", true);
         return -1;
       }
     }
@@ -275,7 +285,8 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
     }
 
     if (!tb[IFLA_IFNAME]) {
-      syslog2(LOG_WARNING, "IFLA_IFNAME attribute is missing.");
+      log_func(LOG_WARNING, __func__, __FILENAME__, __LINE__,
+               "IFLA_IFNAME attribute is missing.", true);
       continue;
     } else {
       strcpy(dev->name, (char *)RTA_DATA(tb[IFLA_IFNAME]));
@@ -303,6 +314,7 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
 }
 
 int get_netdev(struct slist_head *list) {
+  ensure_initialized();
   FUNC_START_DEBUG;
   int sd;
   void *buf;
@@ -319,5 +331,17 @@ int get_netdev(struct slist_head *list) {
   }
 
   close(sd); /* close socket */
+  return 0;
+}
+
+int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
+  if (!args) {
+    log_func = syslog2_;
+    time_func = clock_gettime;
+  } else {
+    log_func = args->log ? args->log : syslog2_;
+    time_func = args->get_time ? args->get_time : clock_gettime;
+  }
+  nlgl_initialized = true;
   return 0;
 }

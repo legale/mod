@@ -17,8 +17,36 @@ This repository contains several small C libraries and utilities. Each module li
 - **hashtable-linux-kernel** – Linux kernel inspired hash table experiments.
 - **leak_detector_c** – simple leak detection helper used by other modules.
 
-Many networking helpers rely on the `syslog2` library for logging instead of
-shipping their own implementations.
+  Many networking helpers rely on the `syslog2` library for logging instead of
+  shipping their own implementations.
+
+## Custom Initialization
+
+Each module exposes a `*_mod_init` function that accepts an optional
+`mod_init_args_t` structure. Use these hooks to override logging and timing
+callbacks before calling any other APIs. Modules fall back to the default
+implementations (such as `syslog()` and `clock_gettime()`) when the argument is
+`NULL` or when individual fields are unset.
+
+Example initialization order:
+
+```c
+mod_init_args_t args = {
+  .log = my_log_function,
+  .get_time = my_get_time,
+};
+
+syslog2_mod_init(&(syslog2_mod_init_args_t){
+  .log = args.log,
+  .get_time = args.get_time,
+});
+
+timeutil_mod_init(&(timeutil_mod_init_args_t){
+  .get_time = args.get_time,
+});
+
+/* initialize other modules here */
+```
 
 ## Running Tests
 

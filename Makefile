@@ -6,7 +6,7 @@ COV_DIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil leak_dete
 # Run tests in all modules
 test:
 	@set -e; for d in $(SUBDIRS); do \
-		printf '\n==> $$d\n'; \
+	printf "\n==> $$d\n"; \
 		if [ "$$d" = "uevent" ]; then \
 			$(MAKE) -C $$d check; \
 		else \
@@ -18,7 +18,7 @@ test:
 coverage:
 	@fail=""; \
 	for d in $(COV_DIRS); do \
-	printf '\n==> $$d (coverage)\n'; \
+	printf "\n==> $$d (coverage)\n"; \
 	if ! $(MAKE) -C $$d coverage; then \
 	fail="$$fail $$d"; \
 	fi; \
