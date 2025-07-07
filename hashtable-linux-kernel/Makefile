@@ -4,9 +4,6 @@ CC_MUSL = musl-gcc
 
 AR = ar
 CFLAGS += -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections
-ifdef LEAKCHECK
-CFLAGS += -DLEAKCHECK
-endif
 ifdef JEMALLOC
 LDLIBS += -ljemalloc
 endif
@@ -28,7 +25,9 @@ LIBNAME = hashtable
 SRC_LIB := hashtable.c deque.c assoc_array.c mock_mem_functions.c
 SRC_BIN := main.c
 ifdef LEAKCHECK
-SRC_BIN += leak_detector_c.c
+LDDIRS += -L../leak_detector_c
+LDLIBS += -lleak_detector
+CFLAGS += -DLEAKCHECK
 endif
 SRC := $(SRC_LIB) $(SRC_BIN)
 OBJS := $(SRC:%.c=$(BD)/%.o)

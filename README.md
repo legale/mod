@@ -15,6 +15,7 @@ This repository contains several small C libraries and utilities. Each module li
 - **netlink_arp_cache** – small helper for parsing netlink ARP replies.
 - **libpcap-dhcp-capture** – capture DHCP packets using libpcap.
 - **hashtable-linux-kernel** – Linux kernel inspired hash table experiments.
+- **leak_detector_c** – simple leak detection helper used by other modules.
 
 Many networking helpers rely on the `syslog2` library for logging instead of
 shipping their own implementations.

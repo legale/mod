@@ -19,7 +19,7 @@
 #include "libnl_getlink.h"
 #include "../syslog2/syslog2.h"
 
-#include "leak_detector_c.h"
+#include "../leak_detector_c/leak_detector.h"
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))

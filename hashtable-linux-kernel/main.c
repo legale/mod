@@ -26,7 +26,7 @@
 
 
 #ifdef LEAKCHECK
-#include "leak_detector_c.h"
+#include "../leak_detector_c/leak_detector.h"
 #endif
 
 /* cli arguments parse macro and functions */
