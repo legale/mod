@@ -66,9 +66,9 @@ static uevent_task_t *wait_and_pop_task(uevent_worker_pool_t *pool) {
   }
 
   if (cached_mask & LOG_MASK(LOG_DEBUG)) {
-    syslog2(LOG_DEBUG, "[WORKER_QUEUE] task popped, queue_size=%d", pool->queue_size);
+    uevent_log(LOG_DEBUG, "[WORKER_QUEUE] task popped, queue_size=%d", pool->queue_size);
   } else if (pool->queue_size > ATOM_LOAD_ACQ(pool->total_workers)) {
-    syslog2(LOG_WARNING, "[WORKER_QUEUE] task popped, queue_size=%d", pool->queue_size);
+    uevent_log(LOG_WARNING, "[WORKER_QUEUE] task popped, queue_size=%d", pool->queue_size);
     try_spawn_extra_worker(pool);
   }
 
@@ -96,16 +96,16 @@ static void process_worker_task(uevent_worker_pool_t *pool, uevent_task_t *task)
     return;
   }
 
-  uint64_t cb_start_time = tu_clock_gettime_monotonic_fast_ms();
+  uint64_t cb_start_time = get_current_time_ms();
   int64_t queue_delay = (int64_t)cb_start_time - (int64_t)task->cron_time;
 
   // логируем задержку в очереди
   if (task->cron_time) {
     int refcount = ATOM_LOAD_ACQ(uev->refcount);
     if (cached_mask & LOG_MASK(LOG_DEBUG)) {
-      syslog2(LOG_DEBUG, "[WORKER_DBG] name='%s' task_start_delay=%" PRId64 " refcount=%d", ev->name, queue_delay, refcount);
+      uevent_log(LOG_DEBUG, "[WORKER_DBG] name='%s' task_start_delay=%" PRId64 " refcount=%d", ev->name, queue_delay, refcount);
     } else if (queue_delay > 10000) {
-      syslog2(LOG_WARNING, "[WORKER_LAG] name='%s' task_start_delay=%" PRId64 " refcount=%d", ev->name, queue_delay, refcount);
+      uevent_log(LOG_WARNING, "[WORKER_LAG] name='%s' task_start_delay=%" PRId64 " refcount=%d", ev->name, queue_delay, refcount);
       try_spawn_extra_worker(pool);
     }
   }
@@ -181,7 +181,7 @@ static void try_spawn_extra_worker(uevent_worker_pool_t *pool) {
     // если лимит достигнут — выходим
     if (old_total >= max_workers) {
       int qsize = pool->queue_size;
-      syslog2(LOG_WARNING, "max total workers reached! %d/%d qsize=%d", old_total, max_workers, qsize);
+      uevent_log(LOG_WARNING, "max total workers reached! %d/%d qsize=%d", old_total, max_workers, qsize);
       return;
     }
 
@@ -198,7 +198,7 @@ static void try_spawn_extra_worker(uevent_worker_pool_t *pool) {
   pthread_t tid;
   if (pthread_create(&tid, NULL, uevent_extra_worker_thread, pool) == 0) {
     pthread_detach(tid);
-    syslog2(LOG_WARNING, "created extra worker total_workers=%d", old_total + 1);
+    uevent_log(LOG_WARNING, "created extra worker total_workers=%d", old_total + 1);
   } else {
     // если поток не удалось создать, откатываем счетчик обратно
     atomic_fetch_sub_explicit(&pool->total_workers, 1, memory_order_acq_rel);
@@ -271,7 +271,7 @@ void uevent_worker_pool_insert(uevent_worker_pool_t *pool, uev_t *uev, short tri
   TMARK(10, "START");
   uevent_task_t *task = UEV_MALLOC(sizeof(uevent_task_t));
   if (task == NULL) {
-    syslog2(LOG_ERR, "Failed to allocate memory for uevent task");
+    uevent_log(LOG_ERR, "Failed to allocate memory for uevent task");
     return;
   }
 
@@ -381,7 +381,7 @@ bool uevent_worker_pool_is_idle(uevent_worker_pool_t *pool) {
   pthread_mutex_unlock(&pool->task_mutex);
 
   int active = atomic_load_explicit(&pool->active_tasks, memory_order_acquire);
-  syslog2(LOG_DEBUG, "worker pool active_tasks=%d", active);
+  uevent_log(LOG_DEBUG, "worker pool active_tasks=%d", active);
   TMARK(0, "FINISH");
   return queue_empty && (active == 0);
 }
