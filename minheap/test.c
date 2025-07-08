@@ -85,7 +85,6 @@ void *test_malloc_fail_second(size_t size) {
 }
 
 void test_create_malloc_fail() {
-#ifdef TESTRUN
   PRINT_TEST_START("Create heap with malloc failure (negative case)");
   SET_MALLOC(NULL);
   minheap_t *heap = mh_create(10);
@@ -100,7 +99,6 @@ void test_create_malloc_fail() {
   assert(heap == NULL && "minheap_create should fail if malloc fail on second call");
 
   PRINT_TEST_PASSED();
-#endif
 }
 
 void test_insert_null_node() {

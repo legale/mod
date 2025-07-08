@@ -26,7 +26,6 @@ static int mock_time(struct timespec *ts) {
   return 0;
 }
 
-#ifdef TESTRUN
 int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
            struct timeval *timeout) {
   (void)nfds;
@@ -37,7 +36,6 @@ int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
   errno = EINTR;
   return -1;
 }
-#endif
 
 static void test_parse_rtattr(void) {
   nlarpcache_mod_init(&(netlink_arp_cache_mod_init_args_t){

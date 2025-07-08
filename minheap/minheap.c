@@ -21,7 +21,6 @@ int minheap_mod_init(const minheap_mod_init_args_t *args) {
   return 0;
 }
 
-#ifdef TESTRUN
 // Переопределение malloc для тестирования
 malloc_func_t malloc_orig = malloc;
 malloc_func_t malloc_hook = malloc;
@@ -33,7 +32,6 @@ malloc_func_t malloc_hook = malloc;
 void *test_malloc_fail(size_t size) {
   return NULL;
 }
-#endif
 
 // Устанавливает индекс узла (idx + 1 для отличия от 0)
 void mh_map_set(minheap_t *minheap, minheap_node_t *node, int idx) {

@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <time.h>
 
-#ifdef TESTRUN
 // --- Нужные функции и переменные для тестов ---
 typedef void *(*malloc_func_t)(size_t);
 extern malloc_func_t malloc_hook;
@@ -25,8 +24,6 @@ void *test_malloc_fail(size_t size);
   do {                         \
     malloc_hook = malloc_orig; \
   } while (0)
-
-#endif
 
 #ifndef container_of
 #define container_of(ptr, type, member)                \

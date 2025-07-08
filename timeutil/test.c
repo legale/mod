@@ -3,18 +3,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
-#ifdef TESTRUN
 #include <errno.h>
 #include <stdbool.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-#endif
 
 #include "timeutil.h"
 
 #include "../test_util.h"
 
-#ifdef TESTRUN
 static bool fail_clock_gettime = false;
 static struct timespec *fake_times = NULL;
 static int fake_times_len = 0;
@@ -69,7 +66,6 @@ time_t time(time_t *tloc) {
   }
   return syscall(SYS_time, tloc);
 }
-#endif
 
 static void test_msleep_accuracy(void) {
   PRINT_TEST_START("msleep accuracy");
@@ -96,13 +92,11 @@ static void test_msleep_accuracy(void) {
 
 static void test_msleep_failure(void) {
   PRINT_TEST_START("msleep failure path");
-#ifdef TESTRUN
   set_nanosleep_fail(1);
   errno = 0;
   assert(msleep(10) == -1);
   assert(errno == EINTR);
   set_nanosleep_fail(0);
-#endif
   PRINT_TEST_PASSED();
 }
 
@@ -215,57 +209,45 @@ static void test_pause_resume(void) {
 
 static void test_clock_gettime_failure(void) {
   PRINT_TEST_START("tu_clock_gettime failure paths");
-#ifdef TESTRUN
   struct timespec ts;
   set_clock_gettime_fail(1);
   assert(tu_clock_gettime_monotonic_fast(&ts) != 0);
   assert(tu_clock_gettime_realtime_fast(&ts) != 0);
   assert(tu_clock_gettime_monotonic_fast_ms() == 0);
   set_clock_gettime_fail(0);
-#endif
   PRINT_TEST_PASSED();
 }
 
 static void test_pause_branches(void) {
   PRINT_TEST_START("pause_start/pause_end branch coverage");
-#ifdef TESTRUN
   struct timespec seq[] = {
       {0, 900000000}, {1, 100000000}, // first pause diff=200ms (sub branch)
       {1, 200000000}, {2, 100000000}  // second pause diff=900ms (sub branch + add overflow)
   };
   set_clock_gettime_sequence(seq, 4);
-#endif
   tu_pause_start();       // uses seq[0]
   tu_pause_start();       // already active
   tu_pause_end();         // uses seq[1]
   tu_pause_start();       // uses seq[2]
   tu_pause_end();         // uses seq[3]
   tu_pause_end();         // no-op when not active
-#ifdef TESTRUN
   reset_clock_gettime_sequence();
-#endif
   PRINT_TEST_PASSED();
 }
 
 static void test_monotonic_negative_and_realtime_overflow(void) {
   PRINT_TEST_START("monotonic negative and realtime overflow");
-#ifdef TESTRUN
   struct timespec seq_off[] = {{5, 500000000}, {4, 700000000}}; // realtime then monotonic
   set_clock_gettime_sequence(seq_off, 2);
-#endif
   tu_update_offset();
-#ifdef TESTRUN
   reset_clock_gettime_sequence();
   struct timespec seq_calls[] = {{11, 50000000}, {12, 600000000}, {13, 0}};
   set_clock_gettime_sequence(seq_calls, 3);
-#endif
   struct timespec ts;
   assert(tu_clock_gettime_monotonic_fast(&ts) == 0);
   assert(tu_clock_gettime_realtime_fast(&ts) == 0);
   uint64_t ms = tu_clock_gettime_monotonic_fast_ms();
-#ifdef TESTRUN
   reset_clock_gettime_sequence();
-#endif
   assert(ms > 0);
   PRINT_TEST_PASSED();
 }
@@ -317,14 +299,10 @@ static void test_timezone_offset(void) {
 
 static void test_timezone_offset_fail(void) {
   PRINT_TEST_START("tu_get_timezone_offset failure branch");
-#ifdef TESTRUN
   set_time_fail(1);
   time_t off = tu_get_timezone_offset();
   assert(off == 0);
   set_time_fail(0);
-#else
-  (void)tu_get_timezone_offset();
-#endif
   PRINT_TEST_PASSED();
 }
 
@@ -389,10 +367,8 @@ static void test_perf_custom_vs_system(void) {
 
 int main(int argc, char **argv) {
   timeutil_mod_init_args_t args = {0};
-#ifdef TESTRUN
   args.get_time = test_clock_gettime;
   args.sleep_fn = test_nanosleep;
-#endif
   timeutil_mod_init(&args);
   tu_init();
   struct {
