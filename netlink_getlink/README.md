@@ -17,8 +17,8 @@ run `./build/getlink_shared` and check
 leakcheck report `cat /tmp/leak_info.txt`
 
 ## Initialization
-Before using the library functions you may optionally call
-`netlink_getlink_mod_init()` to provide custom logging or time retrieval
-functions. Passing `NULL` sets defaults to use `syslog2` for logging and
-`clock_gettime` for time.
+Library initialization happens automatically on first use with
+`pthread_once`. You may optionally call `netlink_getlink_mod_init()`
+beforehand to supply a custom logging function. Passing `NULL` keeps the
+default `syslog2` logger.
 

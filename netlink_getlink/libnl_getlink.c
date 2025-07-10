@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <syslog.h>
 #include <time.h>
+#include <pthread.h>
 #include <unistd.h>
 
 #include "libnl_getlink.h"
@@ -58,14 +59,16 @@ static void syslog2_internal(int pri, const char *func, const char *filename, in
 
 // logger interface with default implementation END
 
-static volatile bool nlgl_initialized = false;
+static pthread_once_t nlgl_once = PTHREAD_ONCE_INIT;
 
 int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
 
-static void nl_getlink_is_initialized(void) {
-  if (!nlgl_initialized) {
-    netlink_getlink_mod_init(NULL);
-  }
+static void nl_getlink_default_init(void) {
+  syslog2_func = syslog2_internal;
+}
+
+static void nl_getlink_init_marker(void) {
+  /* no-op */
 }
 
 #define parse_rtattr_nested(tb, max, rta) \
@@ -131,7 +134,7 @@ int addattr32(struct nlmsghdr *n, unsigned int maxlen, int type, __u32 data) {
 }
 
 void free_netdev_list(struct slist_head *list) {
-  nl_getlink_is_initialized();
+  pthread_once(&nlgl_once, nl_getlink_default_init);
   FUNC_START_DEBUG;
   netdev_item_t *item = NULL;
   netdev_item_t *tmp = NULL;
@@ -144,7 +147,7 @@ void free_netdev_list(struct slist_head *list) {
 }
 
 netdev_item_t *ll_get_by_index(struct slist_head *list, int index) {
-  nl_getlink_is_initialized();
+  pthread_once(&nlgl_once, nl_getlink_default_init);
   // FUNC_START_DEBUG;
   netdev_item_t *item;
   slist_for_each_entry(item, list, list) {
@@ -345,7 +348,7 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
 }
 
 int get_netdev(struct slist_head *list) {
-  nl_getlink_is_initialized();
+  pthread_once(&nlgl_once, nl_getlink_default_init);
   FUNC_START_DEBUG;
   int sd;
   void *buf;
@@ -370,8 +373,9 @@ int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
     syslog2_func = syslog2_internal;
   } else {
     if (args->syslog2_func) syslog2_func = args->syslog2_func;
+    else syslog2_func = syslog2_internal;
   }
-  
-  nlgl_initialized = true;
+
+  pthread_once(&nlgl_once, nl_getlink_init_marker);
   return 0;
 }
