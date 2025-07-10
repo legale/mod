@@ -49,6 +49,8 @@ typedef struct nl_req {
 
 typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
 
+/* Allows callers to inject a custom logging routine so this module does not
+   depend directly on syslog2. */
 typedef struct netlink_getlink_mod_init_args_t {
   syslog2_fn_t syslog2_func;
 } netlink_getlink_mod_init_args_t;
