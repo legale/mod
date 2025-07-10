@@ -17,8 +17,20 @@ run `./build/getlink_shared` and check
 leakcheck report `cat /tmp/leak_info.txt`
 
 ## Initialization
-Before using the library functions you may optionally call
-`netlink_getlink_mod_init()` to provide custom logging or time retrieval
-functions. Passing `NULL` sets defaults to use `syslog2` for logging and
-`clock_gettime` for time.
+Before using the library functions you may call `netlink_getlink_mod_init()`
+to inject a custom logger. The function accepts a pointer to
+`netlink_getlink_mod_init_args_t` with a single field `syslog2_func`.  Passing
+`NULL` uses the default `syslog2` logger.
+
+```c
+static void my_logger(int pri, const char *func, const char *file,
+                      int line, const char *fmt, bool nl, va_list ap) {
+  vfprintf(stderr, fmt, ap);
+  if (nl) fprintf(stderr, "\n");
+}
+
+netlink_getlink_mod_init(&(netlink_getlink_mod_init_args_t){
+  .syslog2_func = my_logger,
+});
+```
 
