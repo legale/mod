@@ -108,7 +108,7 @@ static void syslog2_internal(int pri, const char *func, const char *file, int li
   vsnprintf(msg, sizeof(msg), fmt, ap);
 
   if (log_syslog) {
-    syslog2(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
+    syslog(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
   }
 
   char tbuf[64];
