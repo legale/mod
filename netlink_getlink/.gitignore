@@ -21,3 +21,12 @@
 
 !.gitkeep
 build/
+
+# coverage files
+*.gcda
+*.gcno
+*.gcov
+
+# compiled binaries
+test
+main
