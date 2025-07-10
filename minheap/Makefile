@@ -8,8 +8,8 @@ OBJ = minheap.o
 TEST_OBJ = test.o
 MAIN_OBJ = main.o 
 
-LDFLAGS = -L. -L../syslog2 -L../timeutil
-LIBS = -lminheap -lsyslog2 -ltimeutil
+LDFLAGS = -L. 
+LIBS = -lminheap
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -46,12 +46,10 @@ main: main.o $(LIBNAME)
 #чтобы не удалять бинарник теста
 .PRECIOUS: test
 
-test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
+test: $(TEST_OBJ) $(LIBNAME)
 		$(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 		./test $(TEST)
 
-../syslog2/libsyslog2.a:
-	$(MAKE) -C ../syslog2 all
 
 main.o: main.c minheap.h
 	$(CC) $(CFLAGS) -c main.c 

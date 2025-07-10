@@ -1,0 +1,21 @@
+{
+	"files.associations": {
+		"test_util.h": "c",
+		"assert.h": "c",
+		"inttypes.h": "c",
+		"random": "c",
+		"limits": "c",
+		"algorithm": "c",
+		"time.h": "c",
+		"socket.h": "c",
+		"errno.h": "c",
+		"stdio.h": "c",
+		"stat.h": "c",
+		"fcntl.h": "c",
+		"unistd.h": "c",
+		"syslog2.h": "c",
+		"timeutil.h": "c",
+		"cstdio": "c",
+		"libnl_getlink.h": "c"
+	}
+}

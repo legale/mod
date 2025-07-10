@@ -8,22 +8,22 @@
 #include <time.h>
 
 static void (*log_func)(int, const char *, ...) = NULL;
-static int (*get_time_func)(struct timespec *) = NULL;
+static int (*realtime_func)(struct timespec *) = NULL;
 
 int minheap_mod_init(const minheap_mod_init_args_t *args) {
   if (!args) {
     log_func = NULL;
-    get_time_func = NULL;
-    return 0;
+    realtime_func = NULL;
+  } else {
+    log_func = args->log;
+    realtime_func = args->get_time;
   }
-  log_func = args->log;
-  get_time_func = args->get_time;
   return 0;
 }
 
 // Переопределение malloc для тестирования
-malloc_func_t malloc_orig = malloc;
-malloc_func_t malloc_hook = malloc;
+static malloc_func_t malloc_orig = malloc;
+static malloc_func_t malloc_hook = malloc;
 
 #undef malloc
 #define malloc malloc_hook
@@ -85,7 +85,7 @@ void mh_free(minheap_t *minheap) {
 
 static int mh_parent(int i) { return (i - 1) / 4; }
 static int mh_left_child(int i) { return 4 * i + 1; }
-//следующие дети идут по порядку за первым
+// следующие дети идут по порядку за первым
 
 void mh_sift_up(minheap_t *minheap, int idx) {
   if (!minheap || idx < 0 || idx >= (int)minheap->size) return;

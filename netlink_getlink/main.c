@@ -1,7 +1,15 @@
+// #include "../syslog2/syslog2.h"
 #include "libnl_getlink.h"
+#include <errno.h>
 #include <stdio.h>
+#include <syslog.h>
+
+
+
 
 int main(void) {
+  // setup_syslog2("main_syslog2", LOG_DEBUG, false);
+
   struct slist_head list;
   INIT_SLIST_HEAD(&list);
 

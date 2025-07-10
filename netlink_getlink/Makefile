@@ -7,8 +7,8 @@ OBJ = libnl_getlink.o
 TEST_OBJ = test.o
 MAIN_OBJ = main.o
 
-LDFLAGS = -L. -L../syslog2 -L../timeutil
-LIBS = -lnl_getlink -lsyslog2 -ltimeutil
+LDFLAGS = -L. 
+LIBS = -lnl_getlink 
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
@@ -30,27 +30,25 @@ endif
 
 all: $(LIBNAME) main test
 
-../syslog2/libsyslog2.a:
-	$(MAKE) -C ../syslog2 all
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
 
-libnl_getlink.o: libnl_getlink.c libnl_getlink.h slist.h ../syslog2/syslog2.h
+libnl_getlink.o: libnl_getlink.c libnl_getlink.h slist.h
 	$(CC) $(CFLAGS) -c libnl_getlink.c
 
 
-main: $(MAIN_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
+main: $(MAIN_OBJ) $(LIBNAME) 
 	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
 
-test: $(TEST_OBJ) $(LIBNAME) ../syslog2/libsyslog2.a
+test: $(TEST_OBJ) $(LIBNAME) 
 	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	        ./test $(TEST)
 
-main.o: main.c libnl_getlink.h slist.h ../syslog2/syslog2.h
+main.o: main.c libnl_getlink.h slist.h 
 	$(CC) $(CFLAGS) -c main.c
 
-test.o: test.c libnl_getlink.h slist.h ../syslog2/syslog2.h
+test.o: test.c libnl_getlink.h slist.h 
 	$(CC) $(CFLAGS) -c test.c
 
 .PRECIOUS: test

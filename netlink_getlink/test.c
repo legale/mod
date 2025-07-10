@@ -1,33 +1,25 @@
+#include "../test_util.h"
 #include "libnl_getlink.h"
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>
-#include "../test_util.h"
 
 static int log_called = 0;
 
-static void mock_log(int pri, const char *func, const char *file, int line,
-                     const char *fmt, bool nl, ...) {
-  (void)pri;
-  (void)func;
-  (void)file;
-  (void)line;
-  (void)fmt;
-  (void)nl;
+static void syslog2_mock(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, va_list ap) {
   log_called++;
-}
 
-static int mock_time(clockid_t clk, struct timespec *ts) {
-  (void)clk;
-  ts->tv_sec = 0;
-  ts->tv_nsec = 0;
-  return 0;
+  char msg[4096];
+  vsnprintf(msg, sizeof(msg), fmt, ap);
+
+  printf("%s:%d %s: %s%s", filename, line, func, msg, add_nl ? "\n" : "");
 }
 
 static void test_get_netdev_list(void) {
   netlink_getlink_mod_init(&(netlink_getlink_mod_init_args_t){
-      .log = mock_log,
-      .get_time = mock_time});
+      .syslog2_func = syslog2_mock,
+  });
+
   struct slist_head list;
   INIT_SLIST_HEAD(&list);
 

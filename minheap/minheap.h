@@ -8,8 +8,6 @@
 
 // --- Нужные функции и переменные для тестов ---
 typedef void *(*malloc_func_t)(size_t);
-extern malloc_func_t malloc_hook;
-extern malloc_func_t malloc_orig;
 
 void *test_malloc_fail(size_t size);
 

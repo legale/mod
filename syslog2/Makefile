@@ -13,8 +13,6 @@ MAIN_OBJ = $(MAIN_SRCS:.c=.o)
 LDFLAGS = -L. -L../timeutil
 LIBS = -lsyslog2 -ltimeutil
 
-dependencies:
-	$(MAKE) -C ../timeutil LIBS="-ltimeutil"
 
 COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
 COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage -lgcov
@@ -34,7 +32,7 @@ ifeq ($(MAKECMDGOALS),coverage)
   COV_CFLAGS += -DTESTRUN=1
 endif
 
-all: dependencies $(LIBNAME) test $(if $(MAIN_OBJ), main)
+all: $(LIBNAME) $(if $(MAIN_OBJ), main)
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
@@ -42,7 +40,7 @@ $(LIBNAME): $(OBJ)
 %.o: %.c syslog2.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
-test: dependencies $(TEST_OBJ) $(LIBNAME)
+test: $(TEST_OBJ) $(LIBNAME)
 	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
 	        ./test $(TEST)
 

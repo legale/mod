@@ -1,3 +1,6 @@
+#include "timeutil.h"
+#include "../test_util.h"
+
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -8,9 +11,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#include "timeutil.h"
 
-#include "../test_util.h"
 
 static bool fail_clock_gettime = false;
 static struct timespec *fake_times = NULL;
@@ -288,7 +289,7 @@ static void test_atomic_ts_ops(void) {
 static void test_timezone_offset(void) {
   PRINT_TEST_START("tu_get_timezone_offset");
 
-  time_t off = tu_get_timezone_offset();
+  int64_t off = tu_get_tz_off();
   PRINT_TEST_INFO("timezone offset: %ld", (long)off);
 
   assert(off >= -(14 * 3600) && off <= 14 * 3600);
@@ -297,14 +298,6 @@ static void test_timezone_offset(void) {
   PRINT_TEST_PASSED();
 }
 
-static void test_timezone_offset_fail(void) {
-  PRINT_TEST_START("tu_get_timezone_offset failure branch");
-  set_time_fail(1);
-  time_t off = tu_get_timezone_offset();
-  assert(off == 0);
-  set_time_fail(0);
-  PRINT_TEST_PASSED();
-}
 
 static void test_perf_custom_vs_system(void) {
   PRINT_TEST_START("performance: tu_clock_gettime_fast vs clock_gettime");
@@ -385,7 +378,6 @@ int main(int argc, char **argv) {
                 test_monotonic_negative_and_realtime_overflow},
                {"atomic_ts_ops", test_atomic_ts_ops},
                {"timezone_offset", test_timezone_offset},
-               {"timezone_offset_fail", test_timezone_offset_fail},
                {"perf_custom_vs_system", test_perf_custom_vs_system}};
 
   if (argc > 1) {

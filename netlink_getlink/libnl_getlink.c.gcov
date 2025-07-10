@@ -1,0 +1,551 @@
+        -:    0:Source:libnl_getlink.c
+        -:    0:Graph:libnl_getlink.gcno
+        -:    0:Data:libnl_getlink.gcda
+        -:    0:Runs:1
+        -:    1:
+        -:    2:#include "slist.h"
+        -:    3:
+        -:    4:#include <errno.h>
+        -:    5:#include <fcntl.h>
+        -:    6:#include <linux/netlink.h>
+        -:    7:#include <linux/rtnetlink.h>
+        -:    8:#include <linux/types.h>
+        -:    9:#include <net/if_arp.h>
+        -:   10:#include <stdint.h>
+        -:   11:#include <stdio.h>
+        -:   12:#include <stdlib.h>
+        -:   13:#include <string.h>
+        -:   14:#include <sys/socket.h>
+        -:   15:#include <sys/stat.h> // fchmod
+        -:   16:#include <sys/time.h> /* timeval_t struct */
+        -:   17:#include <sys/types.h>
+        -:   18:#include <syslog.h>
+        -:   19:#include <time.h>
+        -:   20:#include <unistd.h>
+        -:   21:
+        -:   22:#include "libnl_getlink.h"
+        -:   23:
+        -:   24:// logger interface with default implementation
+        -:   25:typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
+        -:   26:
+        -:   27:// forward declaration
+        -:   28:static void syslog2_internal(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, va_list ap);
+        -:   29:static syslog2_fn_t syslog2_func = syslog2_internal;
+        -:   30:
+function syslog2_ called 11 returned 100% blocks executed 80%
+       11:   31:void syslog2_(int pri, const char *func, const char *file,
+        -:   32:              int line, const char *fmt, bool nl, ...) {
+        -:   33:  va_list ap;
+       11:   34:  va_start(ap, nl);
+        -:   35:
+       11:   36:  if (syslog2_func && syslog2_func != syslog2_internal) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       11:   37:    syslog2_func(pri, func, file, line, fmt, nl, ap);
+call    0 returned 100%
+        -:   38:  } else {
+    #####:   39:    syslog2_internal(pri, func, file, line, fmt, nl, ap);
+call    0 never executed
+        -:   40:  }
+        -:   41:
+       11:   42:  va_end(ap);
+       11:   43:}
+        -:   44:
+        -:   45:// default log func
+function syslog2_internal called 0 returned 0% blocks executed 0%
+    #####:   46:static void syslog2_internal(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, va_list ap) {
+        -:   47:  char msg[4096];
+    #####:   48:  vsnprintf(msg, sizeof(msg), fmt, ap);
+        -:   49:
+    #####:   50:  printf("%s:%d %s: %s%s", filename, line, func, msg, add_nl ? "\n" : "");
+branch  0 never executed
+branch  1 never executed
+call    2 never executed
+    #####:   51:}
+        -:   52:
+        -:   53:#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+        -:   54:
+        -:   55:#ifndef FUNC_START_DEBUG
+        -:   56:#define FUNC_START_DEBUG syslog(LOG_DEBUG, "START")
+        -:   57:#endif
+        -:   58:
+        -:   59:// logger interface with default implementation END
+        -:   60:
+        -:   61:static volatile bool nlgl_initialized = false;
+        -:   62:
+        -:   63:int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
+        -:   64:
+function nl_getlink_is_initialized called 2 returned 100% blocks executed 67%
+        2:   65:static void nl_getlink_is_initialized(void) {
+        2:   66:  if (!nlgl_initialized) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:   67:    netlink_getlink_mod_init(NULL);
+call    0 never executed
+        -:   68:  }
+        2:   69:}
+        -:   70:
+        -:   71:#define parse_rtattr_nested(tb, max, rta) \
+        -:   72:  (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))
+        -:   73:
+function parse_rtattr_flags called 17 returned 100% blocks executed 92%
+       17:   74:static int parse_rtattr_flags(struct rtattr *tb[], int max, struct rtattr *rta,
+        -:   75:                              int len, unsigned short flags) {
+        -:   76:  // FUNC_START_DEBUG;
+        -:   77:  unsigned short type;
+        -:   78:
+       17:   79:  memset(tb, 0, sizeof(struct rtattr *) * (max + 1));
+      447:   80:  while (RTA_OK(rta, len)) {
+branch  0 taken 96% (fallthrough)
+branch  1 taken 4%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100%
+branch  5 taken 0% (fallthrough)
+      430:   81:    type = rta->rta_type & ~flags;
+      430:   82:    if ((type <= max) && (!tb[type])) tb[type] = rta;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 1%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+      430:   83:    rta = RTA_NEXT(rta, len);
+        -:   84:  }
+      17*:   85:  if (len) syslog2(LOG_ERR, "!!!Deficit %d, rta_len=%d", len, rta->rta_len);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+       17:   86:  return 0;
+        -:   87:}
+        -:   88:
+function parse_rtattr called 17 returned 100% blocks executed 100%
+       17:   89:static int parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta,
+        -:   90:                        int len) {
+       17:   91:  return parse_rtattr_flags(tb, max, rta, len, 0);
+call    0 returned 100%
+        -:   92:}
+        -:   93:
+        -:   94:/* parse netlink message */
+function parse_nlbuf called 13 returned 100% blocks executed 100%
+       13:   95:static ssize_t parse_nlbuf(struct nlmsghdr *nh, struct rtattr **tb) {
+        -:   96:  // FUNC_START_DEBUG;
+       13:   97:  unsigned int len =
+        -:   98:      nh->nlmsg_len; /* netlink message length including header */
+       13:   99:  struct ifinfomsg *msg =
+        -:  100:      NLMSG_DATA(nh); /* macro to get a ptr right after header */
+       13:  101:  uint32_t msg_len =
+        -:  102:      NLMSG_LENGTH(sizeof(*msg)); /* netlink message length without header */
+       13:  103:  void *p = nh;                   /* ptr to nh */
+        -:  104:  /* this is very first rtnetlink attribute ptr */
+       13:  105:  struct rtattr *rta = (struct rtattr *)(p + msg_len); /* move ptr forward */
+       13:  106:  len -= msg_len;                                      /* count message length */
+       13:  107:  parse_rtattr(tb, IFLA_MAX, rta, len);                /* fill tb attribute buffer */
+call    0 returned 100%
+       13:  108:  return nh->nlmsg_len;
+        -:  109:}
+        -:  110:
+function addattr_l called 1 returned 100% blocks executed 71%
+        1:  111:static int addattr_l(struct nlmsghdr *n, unsigned int maxlen, int type,
+        -:  112:                     const void *data, int alen) {
+        -:  113:  // FUNC_START_DEBUG;
+        1:  114:  int len = RTA_LENGTH(alen);
+        -:  115:  struct rtattr *rta;
+        -:  116:
+        1:  117:  if (NLMSG_ALIGN(n->nlmsg_len) + RTA_ALIGN(len) > maxlen) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  118:    syslog2(LOG_NOTICE, "addattr_l ERROR: message exceeded bound of %d", maxlen);
+call    0 never executed
+    #####:  119:    return -1;
+        -:  120:  }
+        1:  121:  rta = NLMSG_TAIL(n);
+        1:  122:  rta->rta_type = type;
+        1:  123:  rta->rta_len = len;
+        1:  124:  if (alen) memcpy(RTA_DATA(rta), data, alen);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        1:  125:  n->nlmsg_len = NLMSG_ALIGN(n->nlmsg_len) + RTA_ALIGN(len);
+        1:  126:  return 0;
+        -:  127:}
+        -:  128:
+function addattr32 called 1 returned 100% blocks executed 100%
+        1:  129:int addattr32(struct nlmsghdr *n, unsigned int maxlen, int type, __u32 data) {
+        1:  130:  return addattr_l(n, maxlen, type, &data, sizeof(__u32));
+call    0 returned 100%
+        -:  131:}
+        -:  132:
+function free_netdev_list called 1 returned 100% blocks executed 89%
+        1:  133:void free_netdev_list(struct slist_head *list) {
+        1:  134:  nl_getlink_is_initialized();
+call    0 returned 100%
+        1:  135:  FUNC_START_DEBUG;
+call    0 returned 100%
+        1:  136:  netdev_item_t *item = NULL;
+        1:  137:  netdev_item_t *tmp = NULL;
+        -:  138:
+      12*:  139:  slist_for_each_entry_safe(item, tmp, list, list) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 90% (fallthrough)
+branch  7 taken 10%
+branch  8 taken 92%
+branch  9 taken 8% (fallthrough)
+        -:  140:    // Вместо item->next нужно передавать &item->list
+       11:  141:    slist_del_node(&item->list, list);
+call    0 returned 100%
+       11:  142:    free(item);
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+        -:  143:  }
+        1:  144:}
+        -:  145:
+function ll_get_by_index called 0 returned 0% blocks executed 0%
+    #####:  146:netdev_item_t *ll_get_by_index(struct slist_head *list, int index) {
+    #####:  147:  nl_getlink_is_initialized();
+call    0 never executed
+        -:  148:  // FUNC_START_DEBUG;
+        -:  149:  netdev_item_t *item;
+    #####:  150:  slist_for_each_entry(item, list, list) {
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+    #####:  151:    if (item->index == index) return item;
+branch  0 never executed
+branch  1 never executed
+        -:  152:  }
+        -:  153:
+    #####:  154:  return NULL;
+        -:  155:}
+        -:  156:
+function send_msg called 1 returned 100% blocks executed 54%
+        1:  157:static int send_msg() {
+        -:  158:  // FUNC_START_DEBUG;
+        -:  159:  ssize_t status;
+        -:  160:  struct {
+        -:  161:    struct nlmsghdr nlh;
+        -:  162:    struct ifinfomsg m;
+        -:  163:    char *buf[256];
+        1:  164:  } req = {
+        -:  165:      .nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
+        -:  166:      .nlh.nlmsg_type = RTM_GETLINK,
+        -:  167:      .nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP | NLM_F_ACK,
+        -:  168:      .nlh.nlmsg_pid = 0,
+        -:  169:      .nlh.nlmsg_seq = 1,
+        -:  170:  };
+        1:  171:  int err = addattr32(&req.nlh, sizeof(req), IFLA_EXT_MASK, RTEXT_FILTER_VF);
+call    0 returned 100%
+        1:  172:  if (err) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  173:    syslog2(LOG_ERR, "%s addattr32(&req.nlh, sizeof(req), IFLA_EXT_MASK, RTEXT_FILTER_VF)", strerror(errno));
+call    0 never executed
+call    1 never executed
+    #####:  174:    return -1;
+        -:  175:  }
+        -:  176:
+        1:  177:  int sd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE); /* open socket */
+call    0 returned 100%
+        1:  178:  if (sd < 0) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  179:    syslog2(LOG_ERR, "%s socket()", strerror(errno));
+call    0 never executed
+call    1 never executed
+    #####:  180:    return -1;
+        -:  181:  }
+        1:  182:  fchmod(sd, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+call    0 returned 100%
+        -:  183:
+        -:  184:  // set socket nonblocking flag
+        1:  185:  int flags = fcntl(sd, F_GETFL, 0);
+call    0 returned 100%
+        1:  186:  fcntl(sd, F_SETFL, flags | O_NONBLOCK);
+call    0 returned 100%
+        -:  187:
+        -:  188:  // set socket timeout 100ms
+        1:  189:  struct timeval tv = {.tv_sec = 0, .tv_usec = 100000};
+        1:  190:  if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+call    0 returned 100%
+branch  1 taken 0% (fallthrough)
+branch  2 taken 100%
+    #####:  191:    perror("setsockopt");
+call    0 never executed
+    #####:  192:    return -2;
+        -:  193:  }
+        -:  194:
+        -:  195:  /* send message */
+        1:  196:  status = send(sd, &req, req.nlh.nlmsg_len, 0);
+call    0 returned 100%
+        1:  197:  if (status < 0) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  198:    status = errno;
+    #####:  199:    syslog2(LOG_NOTICE, "%s send()", strerror(errno));
+call    0 never executed
+call    1 never executed
+    #####:  200:    close(sd); /* close socket */
+call    0 never executed
+    #####:  201:    return -1;
+        -:  202:  }
+        1:  203:  return sd;
+        -:  204:}
+        -:  205:
+function recv_msg called 8 returned 100% blocks executed 64%
+        8:  206:static ssize_t recv_msg(int sd, void **buf) {
+        -:  207:  // FUNC_START_DEBUG;
+        8:  208:  ssize_t bufsize = 512;
+        8:  209:  *buf = malloc(bufsize);
+        8:  210:  struct iovec iov = {.iov_base = *buf, .iov_len = bufsize};
+        -:  211:  struct sockaddr_nl sa;
+        8:  212:  struct msghdr msg = {.msg_name = &sa,
+        -:  213:                       .msg_namelen = sizeof(sa),
+        -:  214:                       .msg_iov = &iov,
+        -:  215:                       .msg_iovlen = 1,
+        -:  216:                       .msg_control = NULL,
+        -:  217:                       .msg_controllen = 0,
+        -:  218:                       .msg_flags = 0};
+        -:  219:
+        -:  220:  fd_set readset;
+      136:  221:  FD_ZERO(&readset);
+branch  0 taken 94%
+branch  1 taken 6% (fallthrough)
+        8:  222:  FD_SET(sd, &readset);
+        8:  223:  struct timeval timeout = {.tv_sec = 1, .tv_usec = 0}; // 1 sec. timeout
+        8:  224:  int ret = select(sd + 1, &readset, NULL, NULL, &timeout);
+call    0 returned 100%
+        8:  225:  if (ret == 0) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  226:    return ret;
+        8:  227:  } else if (ret < 0) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  228:    if (errno == EINTR) {
+branch  0 never executed
+branch  1 never executed
+    #####:  229:      syslog2(LOG_WARNING, "select EINTR");
+call    0 never executed
+    #####:  230:      return ret;
+        -:  231:    }
+    #####:  232:    syslog2(LOG_ERR, "select error=%s", strerror(errno));
+call    0 never executed
+call    1 never executed
+    #####:  233:    return ret;
+        -:  234:  }
+        -:  235:
+        -:  236:  ssize_t len =
+        8:  237:      recvmsg(sd, &msg,
+call    0 returned 100%
+        -:  238:              MSG_PEEK | MSG_TRUNC |
+        -:  239:                  MSG_DONTWAIT); // MSG_DONTWAIT to enable non-blocking mode
+       8*:  240:  if (len <= 0) return len;
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+        -:  241:
+        8:  242:  if (len > bufsize) {
+branch  0 taken 88% (fallthrough)
+branch  1 taken 12%
+        7:  243:    bufsize = len;
+        7:  244:    *buf = realloc(*buf, bufsize);
+        7:  245:    iov.iov_base = *buf;
+        7:  246:    iov.iov_len = bufsize;
+        -:  247:  }
+        8:  248:  len = recvmsg(sd, &msg, MSG_DONTWAIT);
+call    0 returned 100%
+        8:  249:  return len;
+        -:  250:}
+        -:  251:
+function parse_recv_chunk called 8 returned 100% blocks executed 81%
+        8:  252:static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
+        -:  253:  // FUNC_START_DEBUG;
+        8:  254:  size_t counter = 0;
+        -:  255:  struct nlmsghdr *nh;
+        -:  256:
+        -:  257:  /*check length */
+        8:  258:  if (len <= 0) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  259:    return -1;
+        -:  260:  }
+        -:  261:
+       21:  262:  for (nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len);
+branch  0 taken 67% (fallthrough)
+branch  1 taken 33%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100%
+branch  5 taken 0% (fallthrough)
+       13:  263:       nh = NLMSG_NEXT(nh, len)) {
+       14:  264:    if (counter > 100) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  265:      syslog2(LOG_ALERT, "counter %zu > 100", true, counter);
+call    0 never executed
+    #####:  266:      break;
+        -:  267:    }
+        -:  268:
+        -:  269:    // syslog2(LOG_DEBUG, "cnt: %zu msg type len: %d NLMSG len: %zu FLAGS
+        -:  270:    // NLM_F_MULTI: %s", counter++, nh->nlmsg_type, (size_t)nh->nlmsg_len,
+        -:  271:    // nh->nlmsg_flags & NLM_F_MULTI ? "true" : "false");
+        -:  272:
+        -:  273:    /* The end of multipart message */
+       14:  274:    if (nh->nlmsg_type == NLMSG_DONE) {
+branch  0 taken 7% (fallthrough)
+branch  1 taken 93%
+        -:  275:      // syslog2(LOG_DEBUG, "NLMSG_DONE");
+        1:  276:      return -1;
+        -:  277:    }
+        -:  278:
+        -:  279:    /* Error handling */
+      13*:  280:    if (nh->nlmsg_type == NLMSG_ERROR) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+        -:  281:      // syslog2(LOG_DEBUG, "NLMSG_ERROR");
+       2*:  282:      continue;
+        -:  283:    }
+        -:  284:
+       13:  285:    struct rtattr *tb[IFLA_MAX + 1] = {0};
+       13:  286:    (void)parse_nlbuf(nh, tb);
+call    0 returned 100%
+        -:  287:    // ssize_t nlmsg_len = parse_nlbuf(nh, tb);
+        -:  288:    // syslog2(LOG_INFO, "parsed nlmsg_len: %zd", nlmsg_len);
+        -:  289:
+       13:  290:    netdev_item_t *dev = NULL;
+       13:  291:    struct ifinfomsg *msg =
+        -:  292:        NLMSG_DATA(nh); /* macro to get a ptr right after header */
+        -:  293:    /* skip loopback device and other non ARPHRD_ETHER */
+        -:  294:
+       13:  295:    if (msg->ifi_type != ARPHRD_ETHER) {
+branch  0 taken 15% (fallthrough)
+branch  1 taken 85%
+        2:  296:      continue;
+        -:  297:    }
+        -:  298:
+       11:  299:    if (!dev) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       11:  300:      dev = calloc(1, sizeof(netdev_item_t));
+       11:  301:      if (!dev) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  302:        syslog2(LOG_ALERT, "failed to allocate memory for netdev_item_s");
+call    0 never executed
+    #####:  303:        return -1;
+        -:  304:      }
+        -:  305:    }
+        -:  306:
+       11:  307:    dev->index = msg->ifi_index;
+        -:  308:
+       11:  309:    if (tb[IFLA_LINKINFO]) {
+branch  0 taken 36% (fallthrough)
+branch  1 taken 64%
+        -:  310:      struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
+        4:  311:      parse_rtattr_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO]);
+call    0 returned 100%
+        -:  312:
+        4:  313:      if (linkinfo[IFLA_INFO_KIND]) {
+branch  0 taken 75% (fallthrough)
+branch  1 taken 25%
+        3:  314:        memcpy(dev->kind, RTA_DATA(linkinfo[IFLA_INFO_KIND]), IFNAMSIZ);
+        3:  315:        if (strcmp("bridge", dev->kind) == 0) dev->is_bridge = true;
+branch  0 taken 33% (fallthrough)
+branch  1 taken 67%
+        -:  316:      }
+        -:  317:    }
+        -:  318:
+      11*:  319:    if (!tb[IFLA_IFNAME]) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  320:      syslog2(LOG_WARNING, "IFLA_IFNAME attribute is missing.");
+call    0 never executed
+    #####:  321:      continue;
+        -:  322:    } else {
+       11:  323:      strcpy(dev->name, (char *)RTA_DATA(tb[IFLA_IFNAME]));
+        -:  324:    }
+        -:  325:
+       11:  326:    if (tb[IFLA_LINK]) {
+branch  0 taken 18% (fallthrough)
+branch  1 taken 82%
+        2:  327:      dev->ifla_link_idx = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
+        -:  328:    }
+        -:  329:
+       11:  330:    if (tb[IFLA_MASTER]) {
+branch  0 taken 9% (fallthrough)
+branch  1 taken 91%
+        1:  331:      dev->master_idx = *(uint32_t *)RTA_DATA(tb[IFLA_MASTER]);
+        -:  332:    }
+        -:  333:
+        -:  334:    /* mac */
+       11:  335:    if (tb[IFLA_ADDRESS]) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       11:  336:      memcpy((void *)&dev->ll_addr, RTA_DATA(tb[IFLA_ADDRESS]), ETH_ALEN);
+        -:  337:    }
+        -:  338:
+       11:  339:    if (dev) slist_add_tail(&dev->list, list); // append dev to list tail
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+        -:  340:
+      11*:  341:    syslog2(LOG_DEBUG, "FLAGS NLM_F_MULTI: %s", nh->nlmsg_flags & NLM_F_MULTI ? "true" : "false");
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+        -:  342:  }
+        -:  343:
+        7:  344:  return 0;
+        -:  345:}
+        -:  346:
+function get_netdev called 1 returned 100% blocks executed 100%
+        1:  347:int get_netdev(struct slist_head *list) {
+        1:  348:  nl_getlink_is_initialized();
+call    0 returned 100%
+        1:  349:  FUNC_START_DEBUG;
+call    0 returned 100%
+        -:  350:  int sd;
+        -:  351:  void *buf;
+        -:  352:  ssize_t len;
+        -:  353:  /*open socket and send req */
+        1:  354:  sd = send_msg();
+call    0 returned 100%
+        -:  355:
+        -:  356:  /* recv and parse kernel answers */
+        1:  357:  int status = 0;
+        9:  358:  while (status == 0) {
+branch  0 taken 89%
+branch  1 taken 11% (fallthrough)
+        8:  359:    len = recv_msg(sd, &buf);
+call    0 returned 100%
+        8:  360:    status = parse_recv_chunk(buf, len, list);
+call    0 returned 100%
+        8:  361:    free(buf);
+        -:  362:  }
+        -:  363:
+        1:  364:  close(sd); /* close socket */
+call    0 returned 100%
+        1:  365:  return 0;
+        -:  366:}
+        -:  367:
+function netlink_getlink_mod_init called 1 returned 100% blocks executed 83%
+        1:  368:int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
+        1:  369:  if (!args) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  370:    syslog2_func = syslog2_internal;
+        -:  371:  } else {
+        1:  372:    if (args->syslog2_func) syslog2_func = args->syslog2_func;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  373:  }
+        -:  374:  
+        1:  375:  nlgl_initialized = true;
+        1:  376:  return 0;
+        -:  377:}

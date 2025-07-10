@@ -5,8 +5,6 @@
 #define _GNU_SOURCE
 #endif
 
-#include "../timeutil/timeutil.h"
-
 #include <pthread.h>     //pthread_setname_np
 #include <stdarg.h>      // va_list, va_start(), va_end()
 #include <stdbool.h>     //bool type
@@ -16,6 +14,7 @@
 #include <syslog.h>      // syslog()
 #include <time.h>        // struct timespec
 #include <unistd.h>      // syscall()
+#include <stdint.h>      // int64_t
 
 // Использование:
 #define PTHREAD_SET_NAME inline_pthread_set_name(__func__, sizeof(__func__) - 1)
@@ -28,9 +27,14 @@ extern const char *last_function[MAX_THREADS];
 extern pid_t thread_ids[MAX_THREADS]; // Реальные идентификаторы потоков
 extern pthread_t pthread_ids[MAX_THREADS];
 
+typedef int64_t (*get_tz_off_fn_t)(void);
+typedef int (*realtime_fn_t)(struct timespec *ts);
+typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
+
 typedef struct syslog2_mod_init_args_t {
-  void (*log)(int, const char *, ...);
-  int (*get_time)(struct timespec *);
+  get_tz_off_fn_t get_tz_off_func;
+  realtime_fn_t realtime_func;
+  syslog2_fn_t syslog2_func;
 } syslog2_mod_init_args_t;
 
 int syslog2_mod_init(const syslog2_mod_init_args_t *args);
@@ -85,7 +89,6 @@ void inline_pthread_set_name(const char *fname_str, size_t len);
 void setup_syslog2(const char *ident, int log_level, bool set_log_syslog);
 void syslog2_(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, ...);
 void syslog2_printf_(int pri, const char *func, const char *filename, int line, const char *fmt, ...);
-void debug(const char *fmt, ...);
 void print_last_functions();
 
 #define __FILENAME__ (__builtin_strrchr(__FILE__, '/') ? __builtin_strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -94,8 +97,8 @@ void print_last_functions();
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILENAME__, __LINE__, fmt, true, ##__VA_ARGS__)
 #endif // syslog2
 
-#ifndef syslog2_nonl
-#define syslog2_nonl(pri, fmt, ...) syslog2_(pri, __func__, __FILENAME__, __LINE__, fmt, false, ##__VA_ARGS__)
+#ifndef syslog_nonl
+#define syslog_nonl(pri, fmt, ...) syslog2_(pri, __func__, __FILENAME__, __LINE__, fmt, false, ##__VA_ARGS__)
 #endif // syslog2
 
 #ifndef syslog2_printf

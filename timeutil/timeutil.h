@@ -44,6 +44,7 @@ int tu_clock_gettime_fast_internal(struct timespec *ts);
 int tu_clock_gettime_realtime_fast(struct timespec *ts);
 uint64_t tu_clock_gettime_monotonic_fast_ms(void);
 time_t tu_get_timezone_offset(void);
+int64_t tu_get_tz_off();
 void tu_pause_start(void);
 void tu_pause_end(void);
 int msleep(uint64_t ms);

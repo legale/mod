@@ -12,7 +12,7 @@
 #include <sys/syscall.h> // SYS_gettid
 #include <unistd.h>      // syscall()
 
-#include "../syslog2/syslog2.h"
+// #include "../syslog2/syslog2.h"
 
 #include <time.h>
 
@@ -32,9 +32,10 @@
 typedef struct netdev_item {
   struct slist_node list;
   int index;
-  int master_idx;              /* master device */
+  int master_idx;          /* master device */
   int ifla_link_idx;       /* ifla_link index */
-  char kind[IFNAMSIZ + 1]; /* vlan, bridge, etc. IFLA_INFO_KIND nested in rtattr IFLA_LINKINFO  */
+  char kind[IFNAMSIZ + 1]; /* vlan, bridge, etc. IFLA_INFO_KIND nested in rtattr
+                              IFLA_LINKINFO  */
   bool is_bridge;
   char name[IFNAMSIZ + 1];
   uint8_t ll_addr[ETH_ALEN];
@@ -45,14 +46,11 @@ typedef struct nl_req {
   struct rtgenmsg gen;
 } nl_req_s;
 
-typedef void (*netlink_getlink_log_fn_t)(int, const char *, const char *, int,
-                                         const char *, bool, ...);
 
-typedef int (*netlink_getlink_time_fn_t)(clockid_t, struct timespec *);
+typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
 
 typedef struct netlink_getlink_mod_init_args_t {
-  netlink_getlink_log_fn_t log;
-  netlink_getlink_time_fn_t get_time;
+  syslog2_fn_t syslog2_func;
 } netlink_getlink_mod_init_args_t;
 
 int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);

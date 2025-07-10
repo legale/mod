@@ -15,16 +15,16 @@
 #include <time.h>
 
 static void (*log_func)(int, const char *, ...) = NULL;
-static int (*get_time_func)(struct timespec *) = NULL;
+static int (*realtime_func)(struct timespec *) = NULL;
 
 int nlmon_mod_init(const nlmon_mod_init_args_t *args) {
   if (!args) {
     log_func = NULL;
-    get_time_func = NULL;
+    realtime_func = NULL;
     return 0;
   }
   log_func = args->log;
-  get_time_func = args->get_time;
+  realtime_func = args->get_time;
   return 0;
 }
 
@@ -70,7 +70,7 @@ void deinit_netlink_monitor(int fd) {
 
   if (fd >= 0) {
     close(fd);
-    syslog(LOG_NOTICE, "netlink socket closed");
+    syslog2(LOG_NOTICE, "netlink socket closed");
   }
 }
 

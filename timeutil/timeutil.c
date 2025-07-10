@@ -8,10 +8,34 @@ static timeutil_get_time_fn_t get_time_ptr = clock_gettime;
 static timeutil_sleep_fn_t sleep_fn_ptr = nanosleep;
 static timeutil_log_fn_t log_hook_ptr = NULL;
 
-static struct timespec offset_global_ts;
-static struct timespec pause_accum_global;
-static struct timespec pause_start_global;
-static volatile bool pause_active_global;
+static struct timespec offset_global_ts = {0};
+static struct timespec pause_accum_global = {0};
+static struct timespec pause_start_global = {0};
+static volatile bool pause_active_global = 0;
+static int64_t offset_tz = 0;
+
+static void tu_localtime_r(struct timespec *ts, struct tm *tm_info) {
+  if (!tu_clock_gettime_realtime_fast(ts)) {
+    time_t current_timestamp = ts->tv_sec + offset_tz;
+    gmtime_r(&current_timestamp, tm_info);
+  }
+}
+
+static int64_t get_tz_off_internal(void) {
+  time_t now = time(NULL);
+
+  struct tm local_tm;
+  struct tm utc_tm;
+
+  tu_localtime_r(&now, &local_tm); // локальное время
+  gmtime_r(&now, &utc_tm);      // UTC время
+
+  // mktime интерпретирует struct tm как локальное время
+  time_t local_sec = mktime(&local_tm);
+  time_t utc_sec = mktime(&utc_tm);
+
+  return (int64_t)difftime(local_sec, utc_sec);
+}
 
 int timeutil_mod_init(const timeutil_mod_init_args_t *args) {
   if (!args) {
@@ -35,7 +59,8 @@ int msleep(uint64_t ms) {
   return sleep_fn_ptr(&ts, NULL);
 }
 
-static inline void timespec_add(struct timespec *dst, const struct timespec *src) {
+static inline void timespec_add(struct timespec *dst,
+                                const struct timespec *src) {
   dst->tv_sec += src->tv_sec;
   dst->tv_nsec += src->tv_nsec;
   if (dst->tv_nsec >= NS_PER_SEC) {
@@ -44,7 +69,9 @@ static inline void timespec_add(struct timespec *dst, const struct timespec *src
   }
 }
 
-static inline void timespec_sub(const struct timespec *end, const struct timespec *start, struct timespec *result) {
+static inline void timespec_sub(const struct timespec *end,
+                                const struct timespec *start,
+                                struct timespec *result) {
   result->tv_sec = end->tv_sec - start->tv_sec;
   result->tv_nsec = end->tv_nsec - start->tv_nsec;
   if (result->tv_nsec < 0) {
@@ -63,6 +90,8 @@ void tu_update_offset(void) {
 
   offset_global_ts.tv_sec = (int64_t)diff.tv_sec;
   offset_global_ts.tv_nsec = diff.tv_nsec;
+
+  offset_tz = get_tz_off_internal();
 }
 
 void tu_init(void) {
@@ -73,6 +102,8 @@ void tu_init(void) {
 
   pause_active_global = false;
 }
+
+__always_inline int64_t tu_get_tz_off() { return offset_tz; }
 
 int tu_clock_gettime_fast_internal(struct timespec *ts) {
   int ret = get_time_ptr(CLOCK_MONOTONIC_RAW, ts);
@@ -139,21 +170,4 @@ void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src) {
   struct timespec tmp;
   atomic_ts_load(src, &tmp);
   atomic_ts_store(dest, &tmp);
-}
-
-time_t tu_get_timezone_offset(void) {
-  time_t now = time(NULL);
-  struct tm local_tm;
-  struct tm gm_tm;
-
-  if (now == (time_t)-1)
-    return 0;
-
-  localtime_r(&now, &local_tm);
-  gmtime_r(&now, &gm_tm);
-
-  time_t local_sec = mktime(&local_tm);
-  time_t gm_sec = mktime(&gm_tm);
-
-  return local_sec - gm_sec;
 }
