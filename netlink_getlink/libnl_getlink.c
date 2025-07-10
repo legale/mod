@@ -262,7 +262,7 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
   for (nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len);
        nh = NLMSG_NEXT(nh, len)) {
     if (counter > 100) {
-      syslog2(LOG_ALERT, "counter %zu > 100", true, counter);
+      syslog2(LOG_ALERT, "counter %zu > 100", counter);
       break;
     }
 
