@@ -63,13 +63,7 @@ static pthread_once_t nlgl_once = PTHREAD_ONCE_INIT;
 
 int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
 
-static void nl_getlink_default_init(void) {
-  syslog2_func = syslog2_internal;
-}
-
-static void nl_getlink_init_marker(void) {
-  /* no-op */
-}
+static void nl_getlink_default_init(void) { syslog2_func = syslog2_internal; }
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))
@@ -369,13 +363,11 @@ int get_netdev(struct slist_head *list) {
 }
 
 int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
-  if (!args) {
-    syslog2_func = syslog2_internal;
-  } else {
-    if (args->syslog2_func) syslog2_func = args->syslog2_func;
-    else syslog2_func = syslog2_internal;
+  pthread_once(&nlgl_once, nl_getlink_default_init);
+
+  if (args && args->syslog2_func) {
+    syslog2_func = args->syslog2_func;
   }
 
-  pthread_once(&nlgl_once, nl_getlink_init_marker);
   return 0;
 }
