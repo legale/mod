@@ -1,5 +1,5 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
+CC ?= gcc
+CFLAGS = -Wall -Wextra -O0 -flto -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
 AR = ar
 ARFLAGS = rcs
 LIBNAME = libtimeutil.a
@@ -30,7 +30,7 @@ ifeq ($(MAKECMDGOALS),coverage)
   COV_CFLAGS += -DTESTRUN=1
 endif
 
-all: $(LIBNAME) test $(if $(MAIN_OBJ), main)
+all: $(LIBNAME) $(if $(MAIN_OBJ), main)
 
 $(LIBNAME): $(OBJ)
 	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)

@@ -24,6 +24,16 @@ typedef struct {
   timeutil_log_fn_t log_hook;
 } timeutil_mod_init_args_t;
 
+// compiler macros
+#ifndef likely
+#define likely(x) __builtin_expect(!!(x), 1)
+#endif
+
+#ifndef unlikely
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
+// unit conversion macros
 #define NS_PER_USEC 1000U
 #define USEC_PER_MS 1000U
 #define MS_PER_SEC 1000U
@@ -37,24 +47,27 @@ typedef struct atomic_timespec {
   _Atomic long tv_nsec;
 } atomic_timespec_t;
 
-int timeutil_mod_init(const timeutil_mod_init_args_t *args);
-void tu_init(void);
-void tu_update_offset(void);
-int tu_clock_gettime_fast_internal(struct timespec *ts);
-int tu_clock_gettime_realtime_fast(struct timespec *ts);
-uint64_t tu_clock_gettime_monotonic_fast_ms(void);
-time_t tu_get_timezone_offset(void);
+void tu_init();
+void tu_update_offset();
+void tu_update_mono_real_offset();
+int tu_clock_gettime_local(struct timespec *ts);
+int tu_clock_gettime_local_mono(struct timespec *ts);
+
+/* ====== быстрые часы, когда работают через VDSO ====== */
+static inline int tu_clock_gettime_realtime(struct timespec *ts) {
+  return clock_gettime(CLOCK_REALTIME, ts);
+}
+
+inline inline static int tu_clock_gettime_mono(struct timespec *ts) {
+  return clock_gettime(CLOCK_MONOTONIC_RAW, ts);
+}
+
+uint64_t tu_clock_gettime_monotonic_ms(void);
 int64_t tu_get_tz_off();
-void tu_pause_start(void);
-void tu_pause_end(void);
 int msleep(uint64_t ms);
 void atomic_ts_load(atomic_timespec_t *src, struct timespec *dest);
 void atomic_ts_store(atomic_timespec_t *dest, struct timespec *src);
 void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
-
-static inline int tu_clock_gettime_monotonic_fast(struct timespec *ts) {
-  return tu_clock_gettime_fast_internal(ts);
-}
 
 static inline void tu_diff_ts(struct timespec *diff, const struct timespec *start, const struct timespec *end) {
   if (end->tv_nsec < start->tv_nsec) {
