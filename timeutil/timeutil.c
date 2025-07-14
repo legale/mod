@@ -281,7 +281,7 @@ void tu_update_mono_real_offset() {
 }
 
 /* инициализация – парсим один раз */
-void tu_init(void) {
+void tu_init() {
   tu_update_offset();
   tu_update_mono_real_offset();
 }
@@ -302,8 +302,9 @@ int tu_clock_gettime_local(struct timespec *ts) {
   // делаем копию кеша (кеш меняется очень редко, допускаем гонку)
   parsed_tz_t tz = g_tz; // одно целостное копирование структуры
 
-  // сразу считаем offset по локальной копии
-  ts->tv_sec += fast_calc_offset(&tz, ts->tv_sec);
+  // считаем offset по локальной копии
+  time_t off = fast_calc_offset(&tz, ts->tv_sec);
+  ts->tv_sec += off;
 
   return 0;
 }

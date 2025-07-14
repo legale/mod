@@ -1,5 +1,5 @@
 CC ?= gcc
-CFLAGS = -Wall -Wextra -O0 -flto -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
+CFLAGS = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g
 AR = ar
 ARFLAGS = rcs
 LIBNAME = libtimeutil.a
