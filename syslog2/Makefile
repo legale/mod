@@ -1,71 +1,48 @@
-.DEFAULT_GOAL := all
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb -I../timeutil
-AR = ar
-ARFLAGS = rcs
-LIBNAME = libsyslog2.a
-OBJ = syslog2.o
-SRCS = $(OBJ:.o=.c)
-TEST_OBJ = test.o
-TEST_SRCS = $(TEST_OBJ:.o=.c)
-MAIN_SRCS = $(wildcard main.c)
-MAIN_OBJ = $(MAIN_SRCS:.c=.o)
-LDFLAGS = -L. -L../timeutil
-LIBS = -lsyslog2 -ltimeutil
+CC ?= gcc
+CFLAGS =	-Wall -Wextra -Werror -Wno-unused-parameter \
+			-O2 -g \
+         	-fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+LDFLAGS = -lpthread -Wl,--gc-sections
 
+SRC = syslog2.c
+HDR = syslog2.h
+OBJ = $(SRC:.c=.o)
 
-COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
-COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage -lgcov
+TEST_SRC = test.c
+TEST_OBJ = $(TEST_SRC:.c=.o)
 
-ifeq ($(DEBUG),1)
-  CFLAGS += -O0 -DDEBUG=1 -g
-  COV_CFLAGS += -O0 -DDEBUG=1 -g
-endif
+MAIN_SRC = main.c
+MAIN_OBJ = $(MAIN_SRC:.c=.o)
 
-ifeq ($(TESTRUN),1)
-  CFLAGS += -DTESTRUN=1
-  COV_CFLAGS += -DTESTRUN=1
-endif
+# timeutil как отдельная библиотека
+TIMEUTIL_PATH = ../timeutil
+TIMEUTIL_SRC = $(TIMEUTIL_PATH)/timeutil.c
+TIMEUTIL_OBJ = $(TIMEUTIL_SRC:.c=.o)
+TIMEUTIL_INC = -I$(TIMEUTIL_PATH)
+TIMEUTIL_LIB = $(TIMEUTIL_PATH)/libtimeutil.a
 
-ifeq ($(MAKECMDGOALS),coverage)
-  CFLAGS += -DTESTRUN=1
-  COV_CFLAGS += -DTESTRUN=1
-endif
+TARGET_LIB = libsyslog2.a
+TARGET_TEST = test
+TARGET_MAIN = main
 
-all: $(LIBNAME) $(if $(MAIN_OBJ), main)
+.PHONY: all clean
 
-$(LIBNAME): $(OBJ)
-	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
+all: $(TARGET_LIB) $(TIMEUTIL_LIB) $(TARGET_TEST) $(TARGET_MAIN)
 
-%.o: %.c syslog2.h
-	$(CC) $(CFLAGS) -c $< -o $@
+$(TARGET_LIB): $(OBJ)
+	ar rcs $@ $^
 
-test: $(TEST_OBJ) $(LIBNAME)
-	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	        ./test $(TEST)
+$(TIMEUTIL_LIB): $(TIMEUTIL_OBJ)
+	ar rcs $@ $^
 
-main: $(MAIN_OBJ) $(LIBNAME)
-	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
+$(TARGET_TEST): $(TEST_OBJ) $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $(TEST_OBJ) $(TARGET_LIB) $(LDFLAGS)
 
-.PRECIOUS: test main
+$(TARGET_MAIN): $(MAIN_OBJ) $(OBJ) $(TIMEUTIL_OBJ)
+	$(CC) $(CFLAGS) $(TIMEUTIL_INC) -o $@ $(MAIN_OBJ) $(OBJ) $(TIMEUTIL_OBJ) $(LDFLAGS)
 
-perf: test
-	@echo "Running valgrind callgrind profiler..."
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./test
-	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
-
-leak: test
-	@echo "Running valgrind memcheck for memory leaks..."
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./test
+%.o: %.c $(HDR)
+	$(CC) $(CFLAGS) $(TIMEUTIL_INC) -c $< -o $@
 
 clean:
-	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) test main callgrind.out
-
-coverage: clean dependencies
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
-	@echo "=== Coverage report (gcov): ==="
-	@gcov syslog2.c | grep -A10 "File 'syslog2.c'"
-	@echo "=== Coverage report (summary): ==="
-	@gcov -b syslog2.c | grep -E 'Lines executed|Branches executed'
-
-.PHONY: all clean perf leak coverage test main dependencies
+	rm -f $(OBJ) $(TEST_OBJ) $(MAIN_OBJ) $(TIMEUTIL_OBJ) $(TARGET_LIB) $(TIMEUTIL_LIB) $(TARGET_TEST) $(TARGET_MAIN)

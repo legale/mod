@@ -1,46 +1,27 @@
-#ifndef SYSLOG2_H_
-#define SYSLOG2_H_
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
+#endif //_POSIX_SOURCE
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
-#endif
+#endif //_GNU_SOURCE
 
-#include <pthread.h>     //pthread_setname_np
-#include <stdarg.h>      // va_list, va_start(), va_end()
-#include <stdbool.h>     //bool type
-#include <stdio.h>       // printf()
-#include <string.h>      //memcpy
-#include <sys/syscall.h> // SYS_gettid
-#include <syslog.h>      // syslog()
-#include <time.h>        // struct timespec
-#include <unistd.h>      // syscall()
-#include <stdint.h>      // int64_t
+#pragma once
 
-// Использование:
-#define PTHREAD_SET_NAME inline_pthread_set_name(__func__, sizeof(__func__) - 1)
+#include <pthread.h>
+#include <stdbool.h>
+#include <string.h>
+#include <sys/syscall.h>
+#include <syslog.h>
 
-// Максимальное количество потоков
-#define MAX_THREADS 512
+#define SYSLOG2_DEFAULT_LEVEL LOG_INFO
+#define MAX_THREADS 256
 
-// Глобальный массив для хранения последней вызванной функции каждого потока
 extern const char *last_function[MAX_THREADS];
-extern pid_t thread_ids[MAX_THREADS]; // Реальные идентификаторы потоков
+extern pid_t thread_ids[MAX_THREADS];
 extern pthread_t pthread_ids[MAX_THREADS];
 
-typedef int64_t (*get_tz_off_fn_t)(void);
-typedef int (*realtime_fn_t)(struct timespec *ts);
-typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
-
-typedef struct syslog2_mod_init_args_t {
-  get_tz_off_fn_t get_tz_off_func;
-  realtime_fn_t realtime_func;
-  syslog2_fn_t syslog2_func;
-} syslog2_mod_init_args_t;
-
-int syslog2_mod_init(const syslog2_mod_init_args_t *args);
-
-// Макрос для записи имени функции
-// Макрос для записи имени функции
+// макрос для записи имени функции
 #define SET_CURRENT_FUNCTION()           \
   do {                                   \
     pid_t tid = syscall(SYS_gettid);     \
@@ -50,59 +31,34 @@ int syslog2_mod_init(const syslog2_mod_init_args_t *args);
     pthread_ids[index] = pthread_self(); \
   } while (0)
 
-// global cached mask value
-extern int cached_mask;
-
-#ifndef likely
-#define likely(x) __builtin_expect(!!(x), 1)
-#endif
-
-#ifndef unlikely
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#endif
-
-#ifndef DBG
-#define DBG printf(__FILE__ ":%d %s\n", __LINE__, __func__)
-#endif
-
-#ifndef FUNC_START_DEBUG
-#define FUNC_START_DEBUG                      \
-  do {                                        \
-    if ((cached_mask & LOG_MASK(LOG_INFO))) { \
-      SET_CURRENT_FUNCTION();                 \
-      syslog2(LOG_INFO, "");                  \
-    }                                         \
+// макрос для установки имени треда (до 15 символов)
+#define PTHREAD_SET_NAME(name)                 \
+  do {                                         \
+    char __buf[16];                            \
+    size_t __len = strlen(name);               \
+    if (__len > 15) __len = 15;                \
+    memcpy(__buf, name, __len);                \
+    __buf[__len] = '\0';                       \
+    pthread_setname_np(pthread_self(), __buf); \
   } while (0)
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
-#ifndef FUNC_START_DEBUG_NO_BT
-#define FUNC_START_DEBUG_NO_BT                \
-  do {                                        \
-    if ((cached_mask & LOG_MASK(LOG_INFO))) { \
-      syslog2(LOG_INFO, "");                  \
-    }                                         \
-  } while (0)
+void setup_syslog2(const char *ident, int level, bool use_syslog);
+void syslog2_(int pri, const char *func, const char *file, int line,
+              const char *fmt, bool nl, ...);
+void syslog2_printf_(int pri, const char *func, const char *file, int line,
+                     const char *fmt, ...);
+void syslog2_print_last_functions(void);
+
+#define syslog2(pri, fmt, ...) \
+  syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+
+#define syslog2_nnl(pri, fmt, ...) \
+  syslog2_(pri, __func__, __FILE__, __LINE__, fmt, false, ##__VA_ARGS__)
+
+#ifdef __cplusplus
+}
 #endif
-
-int setlogmask2(int log_level);
-void inline_pthread_set_name(const char *fname_str, size_t len);
-void setup_syslog2(const char *ident, int log_level, bool set_log_syslog);
-void syslog2_(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, ...);
-void syslog2_printf_(int pri, const char *func, const char *filename, int line, const char *fmt, ...);
-void print_last_functions();
-
-#define __FILENAME__ (__builtin_strrchr(__FILE__, '/') ? __builtin_strrchr(__FILE__, '/') + 1 : __FILE__)
-
-#ifndef syslog2
-#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILENAME__, __LINE__, fmt, true, ##__VA_ARGS__)
-#endif // syslog2
-
-#ifndef syslog_nonl
-#define syslog_nonl(pri, fmt, ...) syslog2_(pri, __func__, __FILENAME__, __LINE__, fmt, false, ##__VA_ARGS__)
-#endif // syslog2
-
-#ifndef syslog2_printf
-#define syslog2_printf(pri, fmt, ...) syslog2_printf_(pri, __func__, __FILENAME__, __LINE__, fmt, ##__VA_ARGS__)
-#endif // syslog2_printf
-
-#endif /* SYSLOG2_H_ */
