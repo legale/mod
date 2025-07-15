@@ -30,13 +30,9 @@ typedef struct {
 } heap_value_t;
 
 
-static inline int clock_gettime_fast(struct timespec *ts, bool raw) {
-  return clock_gettime(raw ? CLOCK_MONOTONIC_RAW : CLOCK_MONOTONIC, ts);
-}
-
-static uint64_t get_current_time_ms(void) {
+static uint64_t get_current_time_ms() {
   struct timespec ts;
-  int ret = clock_gettime_fast(&ts, true);
+  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
     syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
     return 0U;

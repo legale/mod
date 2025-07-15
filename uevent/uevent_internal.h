@@ -12,8 +12,8 @@ void uevent_set_allocators(uevent_malloc_func_t mfn,
                            uevent_calloc_func_t cfn);
 void uevent_reset_allocators(void);
 
-#define UEV_MALLOC(sz) uevent_malloc_hook(sz)
-#define UEV_CALLOC(n, sz) uevent_calloc_hook((n), (sz))
+#define UEV_MALLOC(sz) malloc(sz)
+#define UEV_CALLOC(n, sz) calloc((n), (sz))
 
 // --- Ссылки (threadsafe, но низкоуровневые) ---
 void uevent_ref(uev_t *uev);  // atomic

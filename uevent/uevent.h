@@ -12,6 +12,10 @@
 #include <sys/epoll.h>
 #include <time.h>
 
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
+
 typedef void (*uevent_log_fn_t)(int, const char *, ...);
 typedef uint64_t (*uevent_time_ms_fn_t)(void);
 
@@ -19,8 +23,6 @@ typedef struct {
   uevent_log_fn_t log;
   uevent_time_ms_fn_t time_ms;
 } uevent_mod_init_args_t;
-
-int uevent_mod_init(const uevent_mod_init_args_t *args);
 
 extern uevent_log_fn_t uevent_log_hook;
 extern uevent_time_ms_fn_t uevent_time_ms_hook;
@@ -78,25 +80,25 @@ typedef struct uevent_base_t uevent_base_t;
  */
 #define UEV_TIMEOUT_FROM_EVENT -2
 
-#define TINIT                                               \
-  uint64_t __t_start = 0;                                   \
-  uint64_t __t_mark = 0;                                    \
-  do {                                                      \
-    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;        \
-    __t_start = get_current_time_ms();                      \
-    __t_mark = __t_start;                                   \
+#define TINIT                                              \
+  uint64_t __t_start = 0;                                  \
+  uint64_t __t_mark = 0;                                   \
+  do {                                                     \
+    if (!(syslog2_get_pri() & LOG_MASK(LOG_DEBUG))) break; \
+    __t_start = get_current_time_ms();                     \
+    __t_mark = __t_start;                                  \
   } while (0)
 
-#define TMARK(thr_ms, comment)                                     \
-  do {                                                             \
-    if (!(cached_mask & LOG_MASK(LOG_DEBUG))) break;               \
-    uint64_t __t_now = get_current_time_ms();                      \
-    uint64_t __t_diff = __t_now - __t_mark;                        \
-    if (!(thr_ms) || (__t_diff > (uint64_t)(thr_ms))) {            \
-      uevent_log(LOG_DEBUG, "[TMARK] %s delay_ms=%" PRIu64 "",       \
-                 (comment), __t_diff);                              \
-    }                                                              \
-    __t_mark = __t_now;                                            \
+#define TMARK(thr_ms, comment)                              \
+  do {                                                      \
+    if (!(syslog2_get_pri() & LOG_MASK(LOG_DEBUG))) break;  \
+    uint64_t __t_now = get_current_time_ms();               \
+    uint64_t __t_diff = __t_now - __t_mark;                 \
+    if (!(thr_ms) || (__t_diff > (uint64_t)(thr_ms))) {     \
+      syslog2(LOG_DEBUG, "[TMARK] %s delay_ms=%" PRIu64 "", \
+              (comment), __t_diff);                         \
+    }                                                       \
+    __t_mark = __t_now;                                     \
   } while (0)
 
 /* Структура для события */
@@ -135,56 +137,56 @@ typedef struct uevent_item_t {
 // THREAD-SAFE ФУНКЦИИ БИБЛИОТЕКИ
 
 /* Добавляет событие в базу с опциональным таймаутом (в миллисекундах). Возвращает 0 при успехе, -1 при ошибке. */
-int uevent_add(uev_t *uev, int timeout_ms);
+EXPORT_API int uevent_add(uev_t *uev, int timeout_ms);
 
 /* Удаляет событие из базы. Возвращает 0 при успехе, -1 при ошибке. */
-int uevent_del(uev_t *uev);
+EXPORT_API int uevent_del(uev_t *uev);
 
 /* Освобождает память события (отмечает событие для освобождения). Для статических событий очищает содержимое. Для динамических — освобождает память. */
-void uevent_free(uev_t *uev);
+EXPORT_API void uevent_free(uev_t *uev);
 
 /* деинициализирует базу событий, освобождает все ресурсы. */
-void uevent_deinit(uevent_base_t *base);
+EXPORT_API void uevent_deinit(uevent_base_t *base);
 
 /* Устанавливает таймаут для EV_PERSIST таймера */
-void uevent_set_timeout(uev_t *uev, int timeout_ms);
+EXPORT_API void uevent_set_timeout(uev_t *uev, int timeout_ms);
 
 /* висит ли событие в цикле событий */
-bool uevent_pending(uev_t *uev, int mask);
+EXPORT_API bool uevent_pending(uev_t *uev, int mask);
 
 /* проверяет, является ли указатель на событие валидным и живым */
-bool uevent_is_alive(uev_t *uev);
+EXPORT_API bool uevent_is_alive(uev_t *uev);
 
 // было ли событие инициализировано (динамические создаются, а статические привязываются assign)
-bool uevent_initialized(uev_t *uev);
+EXPORT_API bool uevent_initialized(uev_t *uev);
 
 /* немедленная активация события без соблюдения условий срабатывания */
-void uevent_active(uev_t *uev);
+EXPORT_API void uevent_active(uev_t *uev);
 
 /* тоже самое, что uevent_add, но не нужно передавать таймаут, используется текущий таймаут из события */
-void uevent_add_with_current_timeout(uev_t *uev);
+EXPORT_API void uevent_add_with_current_timeout(uev_t *uev);
 
 /* Запускает цикл обработки событий. Возвращает 0 при нормальном завершении, -1 при ошибке. */
-int uevent_base_dispatch(uevent_base_t *base);
+EXPORT_API int uevent_base_dispatch(uevent_base_t *base);
 
 /* Прерывает цикл обработки событий. */
-void uevent_base_loopbreak(uevent_base_t *base);
+EXPORT_API void uevent_base_loopbreak(uevent_base_t *base);
 
 /* Создаёт новое событие или назначает существующее. Если ev == NULL, создаётся динамическое событие. Возвращает указатель на событие или NULL при ошибке. */
-uev_t *uevent_create_or_assign_event(uevent_t *ev, uevent_base_t *base, int fd, short events, uevent_cb_t cb, void *arg, const char *name);
+EXPORT_API uev_t *uevent_create_or_assign_event(uevent_t *ev, uevent_base_t *base, int fd, short events, uevent_cb_t cb, void *arg, const char *name);
 
 // ОСТАЛЬНЫЕ ФУНКЦИИ БИБЛИОТЕКИ
 
 /* Создаёт новую базу событий. Возвращает указатель на uevent_base или NULL при ошибке. */
-uevent_base_t *uevent_base_new(int max_events);
+EXPORT_API uevent_base_t *uevent_base_new(int max_events);
 
 /* Создаёт новую базу событий вместе с пулом воркеров для обработки колбеков */
-uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers);
+EXPORT_API uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers);
 
 /* получает текущее монотонное время в мс */
-uint64_t get_current_time_ms(void);
+EXPORT_API uint64_t get_current_time_ms();
 
-uev_t *uevent_try_ref(uev_t *uev); // atomic
-bool uevent_put(uev_t *uev);       // atomic
+EXPORT_API uev_t *uevent_try_ref(uev_t *uev); // atomic
+EXPORT_API bool uevent_put(uev_t *uev);       // atomic
 
 #endif /* LIBUEVENT_UEVENT_H */

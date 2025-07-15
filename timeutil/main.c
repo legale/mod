@@ -21,7 +21,7 @@ int main(void) {
   printf("tu_clock_gettime_monotonic_fast_ms: %" PRIu64 "\n", t3);
   printf("time since prev. check excluded pause (expected 0 ms): %" PRIu64 "\n", t3 - t2);
 
-  uint64_t tz_off = tu_get_tz_off();
+  uint64_t tz_off = tu_get_cached_tz_off();
   printf("tz_offset=%" PRIu64 "\n", tz_off);
 
   struct timespec ts;

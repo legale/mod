@@ -28,11 +28,17 @@ static _Atomic int stdout_lock = 0;
 static const char *priority_texts[] = {"M", "A", "C", "E", "W", "N", "I", "D"};
 
 
+#ifdef IS_DYNAMIC_LIB
+#include "../timeutil/timeutil.h" // жёсткая зависимость
+#endif
+
+
 // заглушки для функций связанного модуля времени, чтобы тестировать без него
-__attribute__((weak))
+#ifndef IS_DYNAMIC_LIB
+__attribute__((weak)) void tu_init(void);
 void tu_init() {}
 
-__attribute__((weak))
+__attribute__((weak)) int tu_clock_gettime_local(struct timespec *ts);
 int tu_clock_gettime_local(struct timespec *ts) {
   if (clock_gettime(CLOCK_REALTIME, ts) != 0) return EINVAL;
   struct tm local_tm;
@@ -40,6 +46,8 @@ int tu_clock_gettime_local(struct timespec *ts) {
 
 #if defined(_GNU_SOURCE)
   ts->tv_sec += local_tm.tm_gmtoff;
+  //for debug only!!!!
+  // ts->tv_sec = 0;
 #else
   time_t utc = ts->tv_sec;
   struct tm gm_tm;
@@ -50,6 +58,7 @@ int tu_clock_gettime_local(struct timespec *ts) {
 #endif
   return 0;
 }
+#endif //IS_DYNAMIC_LIB
 
 static inline const char *strprio(int pri) {
   return (pri >= LOG_EMERG && pri <= LOG_DEBUG) ? priority_texts[pri] : "?";
@@ -104,8 +113,7 @@ void syslog2_print_last_functions(void) {
   }
 }
 
-void syslog2_(int pri, const char *func, const char *file, int line,
-              const char *fmt, bool nl, ...) {
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
   if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level)))
@@ -126,8 +134,7 @@ void syslog2_(int pri, const char *func, const char *file, int line,
   va_end(ap);
 
   if (log_syslog) {
-    syslog(pri, "[%d] %s:%d %s: %s%s",
-           tid, file, line, func, msg, nl ? "\n" : "");
+    syslog(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
   }
 
   char tbuf[TIME_BUF_SZ];
@@ -144,8 +151,7 @@ void syslog2_(int pri, const char *func, const char *file, int line,
   }
 }
 
-void syslog2_printf_(int pri, const char *func, const char *file,
-                     int line, const char *fmt, ...) {
+void syslog2_printf_(int pri, const char *func, const char *file, int line, const char *fmt, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
   if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level)))
@@ -167,4 +173,8 @@ void syslog2_printf_(int pri, const char *func, const char *file,
     write(STDOUT_FILENO, msg, len);
     unlock_stdout();
   }
+}
+
+int syslog2_get_pri(){
+  return syslog2_level;
 }

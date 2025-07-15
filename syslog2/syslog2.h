@@ -1,3 +1,6 @@
+#ifndef SYSLOG2_H
+#define SYSLOG2_H
+
 #ifndef _POSIX_SOURCE
 #define _POSIX_SOURCE
 #endif //_POSIX_SOURCE
@@ -6,16 +9,22 @@
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
 
-#pragma once
-
 #include <pthread.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <syslog.h>
 
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
+
 #define SYSLOG2_DEFAULT_LEVEL LOG_INFO
 #define MAX_THREADS 256
+
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
 
 extern const char *last_function[MAX_THREADS];
 extern pid_t thread_ids[MAX_THREADS];
@@ -46,12 +55,11 @@ extern pthread_t pthread_ids[MAX_THREADS];
 extern "C" {
 #endif
 
-void setup_syslog2(const char *ident, int level, bool use_syslog);
-void syslog2_(int pri, const char *func, const char *file, int line,
-              const char *fmt, bool nl, ...);
-void syslog2_printf_(int pri, const char *func, const char *file, int line,
-                     const char *fmt, ...);
-void syslog2_print_last_functions(void);
+EXPORT_API void setup_syslog2(const char *ident, int level, bool use_syslog);
+EXPORT_API void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
+EXPORT_API void syslog2_printf_(int pri, const char *func, const char *file, int line, const char *fmt, ...);
+EXPORT_API void syslog2_print_last_functions(void);
+EXPORT_API int syslog2_get_pri();
 
 #define syslog2(pri, fmt, ...) \
   syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
@@ -62,3 +70,5 @@ void syslog2_print_last_functions(void);
 #ifdef __cplusplus
 }
 #endif
+
+#endif // SYSLOG2_H

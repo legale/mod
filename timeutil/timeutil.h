@@ -14,6 +14,10 @@
 #include <stdint.h>
 #include <time.h>
 
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
+
 typedef int (*timeutil_get_time_fn_t)(clockid_t, struct timespec *);
 typedef int (*timeutil_sleep_fn_t)(const struct timespec *, struct timespec *);
 typedef void (*timeutil_log_fn_t)(const char *);
@@ -47,27 +51,19 @@ typedef struct atomic_timespec {
   _Atomic long tv_nsec;
 } atomic_timespec_t;
 
-void tu_init();
-void tu_update_offset();
-void tu_update_mono_real_offset();
-int tu_clock_gettime_local(struct timespec *ts);
-int tu_clock_gettime_local_mono(struct timespec *ts);
+EXPORT_API void tu_init();
+EXPORT_API void tu_update_offset();
+EXPORT_API void tu_update_mono_real_offset();
+EXPORT_API int tu_clock_gettime_local(struct timespec *ts);
+EXPORT_API int tu_clock_gettime_local_mono(struct timespec *ts);
 
-/* ====== быстрые часы, когда работают через VDSO ====== */
-static inline int tu_clock_gettime_realtime(struct timespec *ts) {
-  return clock_gettime(CLOCK_REALTIME, ts);
-}
 
-inline inline static int tu_clock_gettime_mono(struct timespec *ts) {
-  return clock_gettime(CLOCK_MONOTONIC_RAW, ts);
-}
-
-uint64_t tu_clock_gettime_monotonic_ms(void);
-int64_t tu_get_tz_off();
-int msleep(uint64_t ms);
-void atomic_ts_load(atomic_timespec_t *src, struct timespec *dest);
-void atomic_ts_store(atomic_timespec_t *dest, struct timespec *src);
-void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
+EXPORT_API uint64_t tu_clock_gettime_monotonic_ms(void);
+EXPORT_API int64_t tu_get_cached_tz_off();
+EXPORT_API int msleep(uint64_t ms);
+EXPORT_API void atomic_ts_load(atomic_timespec_t *src, struct timespec *dest);
+EXPORT_API void atomic_ts_store(atomic_timespec_t *dest, struct timespec *src);
+EXPORT_API void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
 
 static inline void tu_diff_ts(struct timespec *diff, const struct timespec *start, const struct timespec *end) {
   if (end->tv_nsec < start->tv_nsec) {

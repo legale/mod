@@ -1,48 +1,61 @@
-CC ?= gcc
-CFLAGS =	-Wall -Wextra -Werror -Wno-unused-parameter \
-			-O2 -g \
-         	-fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
-LDFLAGS = -lpthread -Wl,--gc-sections
+NAME        = syslog2
+CC         ?= gcc
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter \
+              -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS      = $(CFLAGS_BASE) -fPIC
+LDFLAGS     = -Wl,--gc-sections -lpthread
 
-SRC = syslog2.c
-HDR = syslog2.h
-OBJ = $(SRC:.c=.o)
+# Зависимости (модули)
+MODULES     = ../timeutil
 
-TEST_SRC = test.c
-TEST_OBJ = $(TEST_SRC:.c=.o)
+# Исходники и заголовки
+SRC         = $(filter-out main.c test.c, $(wildcard *.c))
+HDR         = $(wildcard *.h)
 
-MAIN_SRC = main.c
-MAIN_OBJ = $(MAIN_SRC:.c=.o)
+# Объекты
+OBJ_STATIC  = $(SRC:.c=.o)
+OBJ_SHARED  = $(SRC:.c=_shared.o)
 
-# timeutil как отдельная библиотека
-TIMEUTIL_PATH = ../timeutil
-TIMEUTIL_SRC = $(TIMEUTIL_PATH)/timeutil.c
-TIMEUTIL_OBJ = $(TIMEUTIL_SRC:.c=.o)
-TIMEUTIL_INC = -I$(TIMEUTIL_PATH)
-TIMEUTIL_LIB = $(TIMEUTIL_PATH)/libtimeutil.a
-
-TARGET_LIB = libsyslog2.a
+# Цели
+TARGET_LIB  = lib$(NAME).a
+TARGET_SO   = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
 
-.PHONY: all clean
+.PHONY: all clean $(MODULES)
 
-all: $(TARGET_LIB) $(TIMEUTIL_LIB) $(TARGET_TEST) $(TARGET_MAIN)
+all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_TEST) $(TARGET_MAIN)
 
-$(TARGET_LIB): $(OBJ)
+# Собираем зависимости
+$(MODULES):
+	$(MAKE) -C $@
+
+# Static library
+$(TARGET_LIB): $(OBJ_STATIC)
 	ar rcs $@ $^
 
-$(TIMEUTIL_LIB): $(TIMEUTIL_OBJ)
-	ar rcs $@ $^
+# Shared library (жёсткая зависимость на зависимости)
+$(TARGET_SO): $(OBJ_SHARED) $(addsuffix /lib$(notdir $(MODULES)).so,$(MODULES))
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
-$(TARGET_TEST): $(TEST_OBJ) $(TARGET_LIB)
-	$(CC) $(CFLAGS) -o $@ $(TEST_OBJ) $(TARGET_LIB) $(LDFLAGS)
+# Тестовый бинарник (статический линк)
+$(TARGET_TEST): test.o $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(TARGET_MAIN): $(MAIN_OBJ) $(OBJ) $(TIMEUTIL_OBJ)
-	$(CC) $(CFLAGS) $(TIMEUTIL_INC) -o $@ $(MAIN_OBJ) $(OBJ) $(TIMEUTIL_OBJ) $(LDFLAGS)
+# Main бинарник (линк с .so)
+$(TARGET_MAIN): main.o $(TARGET_SO)
+	$(CC) $(CFLAGS) -o $@ $^ -L. -l$(NAME) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
+# Static .o
 %.o: %.c $(HDR)
-	$(CC) $(CFLAGS) $(TIMEUTIL_INC) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Shared .o
+%_shared.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f $(OBJ) $(TEST_OBJ) $(MAIN_OBJ) $(TIMEUTIL_OBJ) $(TARGET_LIB) $(TIMEUTIL_LIB) $(TARGET_TEST) $(TARGET_MAIN)
+	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)

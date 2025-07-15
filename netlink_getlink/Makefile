@@ -1,75 +1,58 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
-AR = ar
-ARFLAGS = rcs
-	LIBNAME = libnl_getlink.a
-OBJ = libnl_getlink.o
-TEST_OBJ = test.o
-MAIN_OBJ = main.o
+NAME = netlink_getlink
+CC ?= gcc
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter \
+              -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS = $(CFLAGS_BASE) -fPIC
+LDFLAGS = -Wl,--gc-sections
 
-LDFLAGS = -L. 
-LIBS = -lnl_getlink 
+# зависимости (timeutil syslog2)
+MODULES = ../timeutil ../syslog2
 
-COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
-COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+SRC = $(filter-out main.c test.c, $(wildcard *.c))
+HDR = $(wildcard *.h)
 
-ifeq ($(DEBUG),1)
-  CFLAGS += -O0 -DDEBUG=1 -g
-  COV_CFLAGS += -O0 -DDEBUG=1 -g
-endif
+OBJ_STATIC = $(SRC:.c=.o)
+OBJ_SHARED = $(SRC:.c=_shared.o)
 
-ifeq ($(TESTRUN),1)
-  CFLAGS += -DTESTRUN=1
-  COV_CFLAGS += -DTESTRUN=1
-endif
+TARGET_LIB = lib$(NAME).a
+TARGET_SO  = lib$(NAME).so
+TARGET_TEST = test
+TARGET_MAIN = main
 
-ifeq ($(MAKECMDGOALS),coverage)
-  CFLAGS += -DTESTRUN=1
-  COV_CFLAGS += -DTESTRUN=1
-endif
+.PHONY: all clean $(MODULES)
 
-all: $(LIBNAME) main test
+all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_TEST) $(TARGET_MAIN)
 
+# Собираем зависимости
+$(MODULES):
+	$(MAKE) -C $@
 
-$(LIBNAME): $(OBJ)
-	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
+# static library
+$(TARGET_LIB): $(OBJ_STATIC)
+	ar rcs $@ $^
 
-libnl_getlink.o: libnl_getlink.c libnl_getlink.h slist.h
-	$(CC) $(CFLAGS) -c libnl_getlink.c
+# shared library (жёсткая зависимость на зависимости)
+$(TARGET_SO): $(OBJ_SHARED)
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
+# test binary (static)
+$(TARGET_TEST): test.o $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-main: $(MAIN_OBJ) $(LIBNAME) 
-	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
+# main binary (linked with .so)
+$(TARGET_MAIN): main.o $(TARGET_SO)
+	$(CC) $(CFLAGS) -o $@ $^ -L. -l$(NAME) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
-test: $(TEST_OBJ) $(LIBNAME) 
-	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	        ./test $(TEST)
+# static .o
+%.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-main.o: main.c libnl_getlink.h slist.h 
-	$(CC) $(CFLAGS) -c main.c
-
-test.o: test.c libnl_getlink.h slist.h 
-	$(CC) $(CFLAGS) -c test.c
-
-.PRECIOUS: test
-
-perf: test
-	@echo "Running valgrind callgrind profiler..."
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./test
-	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
-
-leak: test
-	@echo "Running valgrind memcheck for memory leaks..."
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./test
+# shared .o
+%_shared.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) main test callgrind.out
-
-coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
-	@echo "=== Coverage report (gcov): ==="
-	@gcov libnl_getlink.c | grep -A10 "File 'libnl_getlink.c'"
-	@echo "=== Coverage report (summary): ==="
-	@gcov -b libnl_getlink.c | grep -E 'Lines executed|Branches executed'
-
-.PHONY: all clean perf leak
+	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)

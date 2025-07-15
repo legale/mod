@@ -16,6 +16,25 @@
 		"syslog2.h": "c",
 		"timeutil.h": "c",
 		"cstdio": "c",
-		"libnl_getlink.h": "c"
+		"libnl_getlink.h": "c",
+		"stdlib.h": "c",
+		"compare": "c",
+		"string.h": "c",
+		"stdbool.h": "c",
+		"pthread.h": "c",
+		"uevent.h": "c",
+		"stdarg.h": "c",
+		"syscall.h": "c",
+		"uevent_internal.h": "c",
+		"stdatomic.h": "c",
+		"epoll.h": "c",
+		"minheap.h": "c",
+		"exception": "c",
+		"memory_resource": "c",
+		"iosfwd": "c",
+		"new": "c",
+		"ostream": "c",
+		"streambuf": "c",
+		"syslog.h": "c"
 	}
 }

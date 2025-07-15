@@ -193,7 +193,7 @@ void test_worker_pool_insert_execute() {
       uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, cb, NULL, "wp");
   assert(uev != NULL);
 
-  uint64_t now = tu_clock_gettime_monotonic_fast_ms();
+  uint64_t now = tu_clock_gettime_monotonic_ms();
   uevent_worker_pool_insert(pool, uev, UEV_TIMEOUT, now);
 
   uevent_worker_pool_wait_for_idle(pool);
@@ -241,7 +241,7 @@ void test_worker_pool_stop_wait() {
                                     "short");
   assert(uev1 && uev2);
 
-  uint64_t now = tu_clock_gettime_monotonic_fast_ms();
+  uint64_t now = tu_clock_gettime_monotonic_ms();
   uevent_worker_pool_insert(pool, uev1, UEV_TIMEOUT, now);
   uevent_worker_pool_insert(pool, uev2, UEV_TIMEOUT, now);
 
@@ -708,10 +708,10 @@ void test_stress_mt() {
   int total_expected = STRESS_THREADS * STRESS_EVENTS;
   // This loop needs to eventually break if all events are processed,
   // potentially with a timeout to avoid infinite loop on test failure.
-  uint64_t start_time = tu_clock_gettime_monotonic_fast_ms();
+  uint64_t start_time = tu_clock_gettime_monotonic_ms();
   while (atomic_load(&total_triggered) < total_expected) {
     uevent_base_dispatch(base);
-    if (tu_clock_gettime_monotonic_fast_ms() - start_time > 5000) { // Add a timeout to prevent infinite loop
+    if (tu_clock_gettime_monotonic_ms() - start_time > 5000) { // Add a timeout to prevent infinite loop
       PRINT_TEST_INFO("Stress test timed out. Triggered: %d / %d", atomic_load(&total_triggered), total_expected);
       break;
     }

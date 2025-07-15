@@ -6,6 +6,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
+
+// logger fallback
+#ifdef IS_DYNAMIC_LIB
+#include "../syslog2/syslog2.h"   // жёсткая зависимость
+#include "../timeutil/timeutil.h" // жёсткая зависимость
+#endif
+
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
+
+#ifndef IS_DYNAMIC_LIB
+#include <stdarg.h>
+#include <syslog.h>
+
+#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+
+// unit conversion macros
+#define NS_PER_USEC 1000U
+#define USEC_PER_MS 1000U
+#define MS_PER_SEC 1000U
+#define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
+#define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
+#define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+
+__attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  char buf[4096];
+  size_t sz = sizeof(buf);
+  va_list ap;
+
+  va_start(ap, nl);
+  int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+  len += vsnprintf(buf + len, sz - len, fmt, ap);
+  va_end(ap);
+
+  // ограничиваем длину если переполнено
+  if (len >= (int)sz) len = sz - 1;
+
+  // добавляем \n если нужно
+  if (nl && len < (int)sz - 1) buf[len++] = '\n';
+
+  write(STDOUT_FILENO, buf, len);
+}
+
+__attribute__((weak)) uint64_t get_current_time_ms();
+uint64_t get_current_time_ms() {
+  struct timespec ts;
+  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  if (ret != 0) {
+    syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
+    return 0U;
+  }
+  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+}
+#endif // IS_DYNAMIC_LIB
+// logger END
 
 static void (*log_func)(int, const char *, ...) = NULL;
 static int (*realtime_func)(struct timespec *) = NULL;
@@ -19,18 +77,6 @@ int minheap_mod_init(const minheap_mod_init_args_t *args) {
     realtime_func = args->get_time;
   }
   return 0;
-}
-
-// Переопределение malloc для тестирования
-static malloc_func_t malloc_orig = malloc;
-static malloc_func_t malloc_hook = malloc;
-
-#undef malloc
-#define malloc malloc_hook
-
-// Функция для имитации сбоя выделения памяти
-void *test_malloc_fail(size_t size) {
-  return NULL;
 }
 
 // Устанавливает индекс узла (idx + 1 для отличия от 0)

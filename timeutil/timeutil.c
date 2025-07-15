@@ -287,17 +287,17 @@ void tu_init() {
 }
 
 /* вернуть текущее (зимнее) смещение UTC */
-int64_t tu_get_tz_off(void) { return g_tz.standard_offset; }
+int64_t tu_get_cached_tz_off(void) { return g_tz.standard_offset; }
 
 uint64_t tu_clock_gettime_monotonic_ms(void) {
   struct timespec ts;
-  if (unlikely(tu_clock_gettime_mono(&ts) != 0)) return 0;
+  if (unlikely(clock_gettime(CLOCK_MONOTONIC_RAW, &ts) != 0)) return 0;
   return (uint64_t)ts.tv_sec * MS_PER_SEC + ts.tv_nsec / NS_PER_MS;
 }
 
 /* локальное время */
 int tu_clock_gettime_local(struct timespec *ts) {
-  if (unlikely(tu_clock_gettime_realtime(ts) != 0)) return EINVAL;
+  if (unlikely(clock_gettime(CLOCK_REALTIME, ts) != 0)) return EINVAL;
 
   // делаем копию кеша (кеш меняется очень редко, допускаем гонку)
   parsed_tz_t tz = g_tz; // одно целостное копирование структуры

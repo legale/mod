@@ -1,22 +1,21 @@
 #ifndef NETLINK_GET_ADDR_LIBNL_GETLINK_H
 #define NETLINK_GET_ADDR_LIBNL_GETLINK_H
 
+#include "slist.h"
+
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
+#include <stdarg.h> // va_list, va_start(), va_end()
 #include <stdbool.h>
 #include <stdint.h>
-#include <time.h>
-
-#include <stdarg.h>      // va_list, va_start(), va_end()
 #include <stdio.h>       // printf()
 #include <sys/syscall.h> // SYS_gettid
-#include <unistd.h>      // syscall()
-
-// #include "../syslog2/syslog2.h"
-
 #include <time.h>
+#include <unistd.h> // syscall()
 
-#include "slist.h"
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
 
 #ifndef IFNAMSIZ
 #define IFNAMSIZ 16
@@ -46,7 +45,6 @@ typedef struct nl_req {
   struct rtgenmsg gen;
 } nl_req_s;
 
-
 typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
 
 /* Allows callers to inject a custom logging routine so this module does not
@@ -55,10 +53,8 @@ typedef struct netlink_getlink_mod_init_args_t {
   syslog2_fn_t syslog2_func;
 } netlink_getlink_mod_init_args_t;
 
-int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
-
-int get_netdev(struct slist_head *list);
-netdev_item_t *ll_get_by_index(struct slist_head *list, int index);
-void free_netdev_list(struct slist_head *list);
+EXPORT_API int get_netdev(struct slist_head *list);
+EXPORT_API netdev_item_t *ll_get_by_index(struct slist_head *list, int index);
+EXPORT_API void free_netdev_list(struct slist_head *list);
 
 #endif // NETLINK_GET_ADDR_LIBNL_GETLINK_H

@@ -21,52 +21,43 @@
 
 #include "libnl_getlink.h"
 
-// logger interface with default implementation
-typedef void (*syslog2_fn_t)(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, va_list ap);
 
-// forward declaration
-static void syslog2_internal(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, va_list ap);
-static syslog2_fn_t syslog2_func = syslog2_internal;
 
-void syslog2_(int pri, const char *func, const char *file,
-              int line, const char *fmt, bool nl, ...) {
-  va_list ap;
-  va_start(ap, nl);
 
-  if (syslog2_func && syslog2_func != syslog2_internal) {
-    syslog2_func(pri, func, file, line, fmt, nl, ap);
-  } else {
-    syslog2_internal(pri, func, file, line, fmt, nl, ap);
-  }
-
-  va_end(ap);
-}
-
-// default log func
-static void syslog2_internal(int pri, const char *func, const char *filename, int line, const char *fmt, bool add_nl, va_list ap) {
-  char msg[4096];
-  vsnprintf(msg, sizeof(msg), fmt, ap);
-
-  printf("%s:%d %s: %s%s", filename, line, func, msg, add_nl ? "\n" : "");
-}
-
-#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
-
-#ifndef FUNC_START_DEBUG
-#define FUNC_START_DEBUG syslog(LOG_DEBUG, "START")
+// logger fallback
+#ifdef IS_DYNAMIC_LIB
+#include "../syslog2/syslog2.h" // жёсткая зависимость
 #endif
 
-// logger interface with default implementation END
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
 
-static volatile bool nlgl_initialized = false;
+#ifndef IS_DYNAMIC_LIB
+#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
-int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args);
+__attribute__((weak))
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+    char buf[4096];
+    size_t sz = sizeof(buf);
+    va_list ap;
 
-static void nl_getlink_is_initialized(void) {
-  if (!nlgl_initialized) {
-    netlink_getlink_mod_init(NULL);
-  }
+    va_start(ap, nl);
+    int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+    len += vsnprintf(buf + len, sz - len, fmt, ap);
+    va_end(ap);
+
+    // ограничиваем длину если переполнено
+    if (len >= (int)sz) len = sz - 1;
+
+    // добавляем \n если нужно
+    if (nl && len < (int)sz - 1) buf[len++] = '\n';
+
+    write(STDOUT_FILENO, buf, len);
 }
+#endif //IS_DYNAMIC_LIB
+// logger END
+
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))
@@ -131,7 +122,6 @@ int addattr32(struct nlmsghdr *n, unsigned int maxlen, int type, __u32 data) {
 }
 
 void free_netdev_list(struct slist_head *list) {
-  nl_getlink_is_initialized();
   FUNC_START_DEBUG;
   netdev_item_t *item = NULL;
   netdev_item_t *tmp = NULL;
@@ -144,7 +134,6 @@ void free_netdev_list(struct slist_head *list) {
 }
 
 netdev_item_t *ll_get_by_index(struct slist_head *list, int index) {
-  nl_getlink_is_initialized();
   // FUNC_START_DEBUG;
   netdev_item_t *item;
   slist_for_each_entry(item, list, list) {
@@ -345,7 +334,6 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
 }
 
 int get_netdev(struct slist_head *list) {
-  nl_getlink_is_initialized();
   FUNC_START_DEBUG;
   int sd;
   void *buf;
@@ -365,13 +353,3 @@ int get_netdev(struct slist_head *list) {
   return 0;
 }
 
-int netlink_getlink_mod_init(const netlink_getlink_mod_init_args_t *args) {
-  if (!args) {
-    syslog2_func = syslog2_internal;
-  } else {
-    if (args->syslog2_func) syslog2_func = args->syslog2_func;
-  }
-  
-  nlgl_initialized = true;
-  return 0;
-}

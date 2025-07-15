@@ -1,6 +1,14 @@
 #ifndef TEST_UTIL_H
 #define TEST_UTIL_H
 
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
+#endif //_POSIX_SOURCE
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif //_GNU_SOURCE
+
 #include <stdio.h>
 #include <string.h>
 

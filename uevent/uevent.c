@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -30,45 +31,55 @@
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6
 
-static void uevent_default_log(int pri, const char *fmt, ...) {
-  va_list ap;
-  va_start(ap, fmt);
-  char buf[1024];
-  vsnprintf(buf, sizeof(buf), fmt, ap);
-  va_end(ap);
-  syslog2(pri, "%s", buf);
+
+
+// logger fallback
+#ifdef IS_DYNAMIC_LIB
+#include "../syslog2/syslog2.h" // жёсткая зависимость
+#endif
+
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
+
+#ifndef IS_DYNAMIC_LIB
+#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+
+__attribute__((weak))
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+    char buf[4096];
+    size_t sz = sizeof(buf);
+    va_list ap;
+
+    va_start(ap, nl);
+    int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+    len += vsnprintf(buf + len, sz - len, fmt, ap);
+    va_end(ap);
+
+    // ограничиваем длину если переполнено
+    if (len >= (int)sz) len = sz - 1;
+
+    // добавляем \n если нужно
+    if (nl && len < (int)sz - 1) buf[len++] = '\n';
+
+    write(STDOUT_FILENO, buf, len);
 }
 
-uevent_log_fn_t uevent_log_hook = uevent_default_log;
-uevent_time_ms_fn_t uevent_time_ms_hook = tu_clock_gettime_monotonic_fast_ms;
-
-int uevent_mod_init(const uevent_mod_init_args_t *args) {
-  if (!args) {
-    uevent_log_hook = uevent_default_log;
-    uevent_time_ms_hook = tu_clock_gettime_monotonic_fast_ms;
-  } else {
-    uevent_log_hook = args->log ? args->log : uevent_default_log;
-    uevent_time_ms_hook =
-        args->time_ms ? args->time_ms : tu_clock_gettime_monotonic_fast_ms;
+__attribute__((weak))
+uint64_t get_current_time_ms() {
+  struct timespec ts;
+  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  if (ret != 0) {
+    syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
+    return 0U;
   }
-  return 0;
+  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
 }
+#endif //IS_DYNAMIC_LIB
+// logger END
 
-uint64_t get_current_time_ms(void) { return uevent_time_ms_hook(); }
 
-uevent_malloc_func_t uevent_malloc_hook = malloc;
-uevent_calloc_func_t uevent_calloc_hook = calloc;
 
-void uevent_set_allocators(uevent_malloc_func_t mfn,
-                           uevent_calloc_func_t cfn) {
-  uevent_malloc_hook = mfn ? mfn : malloc;
-  uevent_calloc_hook = cfn ? cfn : calloc;
-}
-
-void uevent_reset_allocators(void) {
-  uevent_malloc_hook = malloc;
-  uevent_calloc_hook = calloc;
-}
 
 #ifndef container_of
 #define container_of(ptr, type, member) \
@@ -116,9 +127,9 @@ static void wakeup_fd_read_cb(uevent_t *ev, int fd, short events, void *arg) {
   } while (res > 0);
 
   if ((res < 0) && (errno != EAGAIN) && (errno != EWOULDBLOCK)) {
-    uevent_log(LOG_ERR, "[TIMER_ERR] failed to read from wakeup_fd=%d: %s", fd, strerror(errno));
+    syslog2(LOG_ERR, "[TIMER_ERR] failed to read from wakeup_fd=%d: %s", fd, strerror(errno));
   } else {
-    uevent_log(LOG_DEBUG, "[TIMER_WAK] read wakeup_fd=%d OK", fd);
+    syslog2(LOG_DEBUG, "[TIMER_WAK] read wakeup_fd=%d OK", fd);
     atomic_store_explicit(&ev->base->wakeup_fd_written, false, memory_order_release);
   }
   TMARK(2, "wakeup_fd_read_cb END");
@@ -141,10 +152,10 @@ static void uevent_base_wakeup(uevent_base_t *base) {
   int fd = base->wakeup_event.fd;
   ssize_t res = write(fd, &val, sizeof(val));
   if ((res < 0) && (errno != EAGAIN)) {
-    uevent_log(LOG_WARNING, "failed to write to wakeup_fd=%d error='%s'", fd, strerror(errno));
+    syslog2(LOG_WARNING, "failed to write to wakeup_fd=%d error='%s'", fd, strerror(errno));
   } else {
     atomic_store_explicit(&base->wakeup_fd_written, true, memory_order_release);
-    uevent_log(LOG_DEBUG, "[TIMER_WAK] write wakeup_fd=%d OK", fd);
+    syslog2(LOG_DEBUG, "[TIMER_WAK] write wakeup_fd=%d OK", fd);
   }
 }
 
@@ -207,10 +218,10 @@ static void log_timer_delay_if_needed(uev_t *uev, short triggered_events, uint64
   uint64_t now_ms = get_current_time_ms();
   int64_t diff_ms = (int64_t)now_ms - (int64_t)cron_time;
 
-  if (cached_mask & LOG_MASK(LOG_DEBUG)) {
-    uevent_log(LOG_DEBUG, "[TIMER_DBG] name='%s' cron_time=%" PRIu64 " exec_time=%" PRIu64 " diff_ms=%" PRId64, uev->ev->name, cron_time, now_ms, diff_ms);
+  if (syslog2_get_pri() & LOG_MASK(LOG_DEBUG)) {
+    syslog2(LOG_DEBUG, "[TIMER_DBG] name='%s' cron_time=%" PRIu64 " exec_time=%" PRIu64 " diff_ms=%" PRId64, uev->ev->name, cron_time, now_ms, diff_ms);
   } else if (diff_ms > 1000) {
-    uevent_log(LOG_WARNING, "[TIMER_LAG] name='%s' cron_time=%" PRIu64 " exec_time=%" PRIu64 " diff_ms=%" PRId64, uev->ev->name, cron_time, now_ms, diff_ms);
+    syslog2(LOG_WARNING, "[TIMER_LAG] name='%s' cron_time=%" PRIu64 " exec_time=%" PRIu64 " diff_ms=%" PRId64, uev->ev->name, cron_time, now_ms, diff_ms);
   }
 }
 
@@ -246,7 +257,7 @@ static void uevent_handle_ev_cb(uevent_t *ev, short triggered_events, uint64_t c
   }
   uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
   if (!uev) {
-    uevent_log(LOG_DEBUG, "[EV_CB] Skipping event with NULL uev, name='%s'", ev->name);
+    syslog2(LOG_DEBUG, "[EV_CB] Skipping event with NULL uev, name='%s'", ev->name);
     return;
   }
 
@@ -310,7 +321,7 @@ static uev_t *uev_get_unused(uevent_base_t *base) {
   pthread_mutex_lock(&base->slots_mut);
   if (base->free_uev_arr_cnt == 0) {
     pthread_mutex_unlock(&base->slots_mut);
-    uevent_log(LOG_ERR, "error: no ev_arr free slots left");
+    syslog2(LOG_ERR, "error: no ev_arr free slots left");
     return NULL;
   }
   unsigned idx = base->free_uev_arr[--base->free_uev_arr_cnt];
@@ -321,13 +332,13 @@ static uev_t *uev_get_unused(uevent_base_t *base) {
 // Возврат слота в список свободных
 static int uev_return(uevent_base_t *base, uev_t *uev) {
   if (base == NULL) {
-    uevent_log(LOG_ERR, "error: EINVAL base=NULL");
+    syslog2(LOG_ERR, "error: EINVAL base=NULL");
     return -1;
   }
 
   ptrdiff_t idx = uev - base->uev_arr;
   if (idx < 0 || idx >= base->uev_arr_sz) {
-    uevent_log(LOG_ERR, "error: invalid arr idx");
+    syslog2(LOG_ERR, "error: invalid arr idx");
     return -1;
   }
 
@@ -357,15 +368,15 @@ static void init_base_atomics(uevent_base_t *base) {
 }
 
 static int prepare_base_components(uevent_base_t *base,
-                                  int max_events,
-                                  int num_workers,
-                                  int *wakeup_fd) {
+                                   int max_events,
+                                   int num_workers,
+                                   int *wakeup_fd) {
   base->epoll_fd = epoll_create1(0);
   if (base->epoll_fd == -1) return -1;
 
   *wakeup_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
   if (*wakeup_fd == -1) {
-    uevent_log(LOG_ERR, "error: eventfd: ret=-1 error='%s'", strerror(errno));
+    syslog2(LOG_ERR, "error: eventfd: ret=-1 error='%s'", strerror(errno));
     return -1;
   }
 
@@ -442,7 +453,7 @@ uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
 void uevent_set_timeout(uev_t *uev, int timeout_ms) {
   uev = uevent_try_ref(uev);
   if (!uev) return;
-  uevent_log(LOG_DEBUG, "timeout_ms=%d", timeout_ms);
+  syslog2(LOG_DEBUG, "timeout_ms=%d", timeout_ms);
   atomic_store_explicit(&uev->ev->timeout_ms, timeout_ms, memory_order_release);
   uevent_put(uev);
 }
@@ -500,17 +511,17 @@ uev_t *uevent_create_or_assign_event(uevent_t *ev, uevent_base_t *base, int fd, 
   uev_t *uev = NULL;
 
   if (base == NULL) {
-    uevent_log(LOG_ERR, "error: EINVAL base=NULL");
+    syslog2(LOG_ERR, "error: EINVAL base=NULL");
     goto fail;
   }
 
   if (ev != NULL) {
     if (!ev->is_static) {
-      uevent_log(LOG_ERR, "error: unable to assign dynamically allocated event");
+      syslog2(LOG_ERR, "error: unable to assign dynamically allocated event");
       goto fail;
     }
     if (ATOM_LOAD_ACQ(ev->base) != NULL) {
-      uevent_log(LOG_ERR, "error: unable to assign initialized static event, reset event first");
+      syslog2(LOG_ERR, "error: unable to assign initialized static event, reset event first");
       goto fail;
     }
   }
@@ -529,7 +540,7 @@ uev_t *uevent_create_or_assign_event(uevent_t *ev, uevent_base_t *base, int fd, 
   uev = uev_get_unused(base);
 
   if (uev == NULL) {
-    uevent_log(LOG_ERR, "error: no free slots in ev_arr");
+    syslog2(LOG_ERR, "error: no free slots in ev_arr");
     goto fail_unlock;
   }
 
@@ -625,13 +636,13 @@ static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t 
 
   // Логирование метрик
   uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
-  uevent_log(LOG_DEBUG,
-          "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
-          ATOM_LOAD_ACQ(uev->refcount),
-          ev->name,
-          diff_cron_to_exec,
-          duration,
-          cron_time);
+  syslog2(LOG_DEBUG,
+             "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
+             ATOM_LOAD_ACQ(uev->refcount),
+             ev->name,
+             diff_cron_to_exec,
+             duration,
+             cron_time);
 
   uevent_unlock(ev);
 }
@@ -660,7 +671,7 @@ static void insert_timer_to_heap(uev_t *uev, uint64_t cur_time_ms, int timeout_m
   if (!base) return;
 
   if (!no_lock && pthread_mutex_lock(&base->base_mut) != 0) {
-    uevent_log(LOG_ERR, "error locking base mutex");
+    syslog2(LOG_ERR, "error locking base mutex");
     return;
   }
 
@@ -788,7 +799,7 @@ int uevent_del(uev_t *uev) {
 
   uevent_t *ev = ATOM_LOAD_RELAX(uev->ev);
 
-  uevent_log(LOG_DEBUG, "[UEVENT_DEL] deleting event name='%s'", ev->name);
+  syslog2(LOG_DEBUG, "[UEVENT_DEL] deleting event name='%s'", ev->name);
   remove_event_from_epoll(uev);
   remove_event_from_heap(uev, false);
   uevent_put(uev);
@@ -839,7 +850,7 @@ static void uevent_handle_timers(uevent_base_t *base) {
   if (base == NULL) return;
 
   if (!atomic_load_explicit(&base->running, memory_order_acquire)) {
-    uevent_log(LOG_DEBUG, "[TIMER_HANDLE] event loop is not running. processing timers aborted");
+    syslog2(LOG_DEBUG, "[TIMER_HANDLE] event loop is not running. processing timers aborted");
     return;
   }
 
@@ -868,7 +879,7 @@ static void uevent_handle_timers(uevent_base_t *base) {
     uevent_t *ev = container_of(expired, uevent_t, timer_node);
     uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
     if (!uev) {
-      uevent_log(LOG_NOTICE, "[TIMER] Skipping timer with NULL uev, name='%s'", ev->name);
+      syslog2(LOG_NOTICE, "[TIMER] Skipping timer with NULL uev, name='%s'", ev->name);
       continue;
     }
 
@@ -904,7 +915,7 @@ static int calculate_epoll_timeout(uevent_base_t *base) {
   }
 
   if (pthread_mutex_lock(&base->base_mut) != 0) {
-    uevent_log(LOG_ERR, "failed to lock base mutex");
+    syslog2(LOG_ERR, "failed to lock base mutex");
     return 100;
   }
 
@@ -912,7 +923,7 @@ static int calculate_epoll_timeout(uevent_base_t *base) {
   if (min_node != NULL) {
     uint64_t current_time = get_current_time_ms();
     uevent_t *ev = container_of(min_node, uevent_t, timer_node);
-    uevent_log(LOG_DEBUG, "name='%s' min_node->key=%" PRIu64 " cur_time=%" PRIu64, ev->name, min_node->key, current_time);
+    syslog2(LOG_DEBUG, "name='%s' min_node->key=%" PRIu64 " cur_time=%" PRIu64, ev->name, min_node->key, current_time);
     if (min_node->key <= current_time) {
       epoll_timeout = 0;
     } else {
@@ -953,7 +964,7 @@ static void uevent_handle_epoll(uevent_base_t *base, int nfds) {
     uev_t *uev = (uev_t *)base->events[i].data.ptr;
     short triggered_events = convert_from_epoll_events(base->events[i].events);
     uevent_t *ev = ATOM_LOAD_ACQ(uev->ev);
-    uevent_log(LOG_DEBUG, "[EPOLL DBG] name='%s'", ev->name);
+    syslog2(LOG_DEBUG, "[EPOLL DBG] name='%s'", ev->name);
     if (!atomic_load_explicit(&ev->active_fd, memory_order_acquire)) {
       continue;
     }
@@ -966,17 +977,17 @@ static void uevent_handle_epoll(uevent_base_t *base, int nfds) {
 
 static void dump_timer_heap(uevent_base_t *base) {
   return;
-  if (!(cached_mask & LOG_MASK(LOG_NOTICE))) return;
+  if (!(syslog2_get_pri() & LOG_MASK(LOG_NOTICE))) return;
   if (!base || !base->timer_heap) return;
   if (pthread_mutex_lock(&base->base_mut) != 0) return;
 
   int size = mh_get_size(base->timer_heap);
-  uevent_log(LOG_NOTICE, "=== timer heap_size=%d ===", size);
+  syslog2(LOG_NOTICE, "=== timer heap_size=%d ===", size);
   for (int i = 0; i < size; ++i) {
     minheap_node_t *node = mh_get_node(base->timer_heap, i);
     if (!node) continue;
     uevent_t *ev = container_of(node, uevent_t, timer_node);
-    uevent_log(LOG_NOTICE, "  [%03d] key=%" PRIu64 " name='%s'", i, node->key, ev->name ? ev->name : "(null)");
+    syslog2(LOG_NOTICE, "  [%03d] key=%" PRIu64 " name='%s'", i, node->key, ev->name ? ev->name : "(null)");
   }
   pthread_mutex_unlock(&base->base_mut);
 }
@@ -987,12 +998,12 @@ static int epoll_wait_and_dispatch(uevent_base_t *base, int epoll_timeout) {
                         epoll_timeout);
   uint64_t now = get_current_time_ms();
   int64_t slept_ms = (int64_t)now - (int64_t)mark;
-  uevent_log(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "",
-          epoll_timeout, slept_ms);
+  syslog2(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "",
+             epoll_timeout, slept_ms);
 
   if (nfds == -1) {
     if (errno == EINTR) return 0;
-    uevent_log(LOG_ERR, "epoll_wait failed: %s", strerror(errno));
+    syslog2(LOG_ERR, "epoll_wait failed: %s", strerror(errno));
     return -1;
   }
 
@@ -1023,7 +1034,7 @@ int uevent_base_dispatch(uevent_base_t *base) {
   while (atomic_load_explicit(&base->running, memory_order_acquire)) {
     dump_timer_heap(base);
     if (!uevent_base_has_events(base)) {
-      uevent_log(LOG_DEBUG, "no active events left, breaking event loop.");
+      syslog2(LOG_DEBUG, "no active events left, breaking event loop.");
       atomic_store_explicit(&base->running, false, memory_order_release);
       break;
     }
@@ -1061,7 +1072,7 @@ void uevent_base_loopbreak(uevent_base_t *base) {
     atomic_store_explicit(&ev->active_timer, false, memory_order_release);
     atomic_fetch_sub_explicit(&base->num_active_timers, 1, memory_order_acq_rel);
     if (uev) uevent_put(uev);
-    uevent_log(LOG_DEBUG, "[LOOPBREAK] Removed timer: name='%s'", ev->name);
+    syslog2(LOG_DEBUG, "[LOOPBREAK] Removed timer: name='%s'", ev->name);
   }
   pthread_mutex_unlock(&base->base_mut);
 
@@ -1150,7 +1161,7 @@ void uevent_deinit(uevent_base_t *base) {
 void uevent_ref(uev_t *uev) {
   int old = atomic_fetch_add_explicit(&uev->refcount, 1, memory_order_relaxed);
   uevent_t *ev = ATOM_LOAD_ACQ(uev->ev);
-  uevent_log(LOG_DEBUG, "name='%s' inc refcount=%d", ev->name, old + 1);
+  syslog2(LOG_DEBUG, "name='%s' inc refcount=%d", ev->name, old + 1);
 }
 
 static inline bool refcount_inc_not_zero(atomic_int *r) {
@@ -1171,28 +1182,28 @@ static inline bool refcount_inc_not_zero(atomic_int *r) {
 
 uev_t *uevent_try_ref(uev_t *uev) {
   if (!uev) {
-    uevent_log(LOG_ERR, "error: EINVAL uev=NULL");
+    syslog2(LOG_ERR, "error: EINVAL uev=NULL");
     return NULL;
   }
   if (!refcount_inc_not_zero(&uev->refcount)) {
-    uevent_log(LOG_DEBUG, "error: refcount is zero uev=%p", uev);
+    syslog2(LOG_DEBUG, "error: refcount is zero uev=%p", uev);
     return NULL;
   }
 
   uevent_t *ev = ATOM_LOAD_RELAX(uev->ev);
   if (!ev) {
-    uevent_log(LOG_ERR, "error: NULL ev pointer for uev=%p", uev);
+    syslog2(LOG_ERR, "error: NULL ev pointer for uev=%p", uev);
     atomic_fetch_sub_explicit(&uev->refcount, 1, memory_order_relaxed);
     return NULL;
   }
 
   if (atomic_load_explicit(&ev->pending_free, memory_order_acquire)) {
-    uevent_log(LOG_DEBUG, "error: event pending free for name='%s'", ev->name);
+    syslog2(LOG_DEBUG, "error: event pending free for name='%s'", ev->name);
     atomic_fetch_sub_explicit(&uev->refcount, 1, memory_order_relaxed);
     return NULL;
   }
 
-  uevent_log(LOG_DEBUG, "name='%s' inc refcount=%d", ev->name, atomic_load_explicit(&uev->refcount, memory_order_relaxed));
+  syslog2(LOG_DEBUG, "name='%s' inc refcount=%d", ev->name, atomic_load_explicit(&uev->refcount, memory_order_relaxed));
   return uev;
 }
 
@@ -1201,10 +1212,10 @@ int uevent_unref(uev_t *uev) {
   assert(old > 0 && "refcount <= 0");
 
   if (old == 1) {
-    uevent_log(LOG_DEBUG, "name='---' dec refcount=%d", old - 1);
+    syslog2(LOG_DEBUG, "name='---' dec refcount=%d", old - 1);
   } else {
     uevent_t *ev = ATOM_LOAD_ACQ(uev->ev);
-    uevent_log(LOG_DEBUG, "name='%s' dec refcount=%d", ev->name, old - 1);
+    syslog2(LOG_DEBUG, "name='%s' dec refcount=%d", ev->name, old - 1);
   }
   return old - 1;
 }
