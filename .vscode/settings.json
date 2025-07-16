@@ -52,6 +52,9 @@
 		"utility": "c",
 		"hash.h": "c",
 		"log2.h": "c",
-		"hashtable.h": "c"
+		"hashtable.h": "c",
+		"dlfcn.h": "c",
+		"uevent_worker.h": "c",
+		"list.h": "c"
 	}
 }

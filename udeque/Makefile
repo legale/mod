@@ -19,6 +19,7 @@ TARGET_LIB = lib$(NAME).a
 TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
+TEST_BINS = test
 
 .PHONY: run all clean perf leak coverage $(MODULES)
 
@@ -83,6 +84,7 @@ COV_LDFLAGS = --coverage
 COV_SRCS = $(SRC)
 
 coverage: clean
+	find . -name "*.gcda" -delete
 	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" $(TEST_BINS)
 	@for t in $(TEST_BINS); do ./$$t || exit 1; done
 	@echo "=== Coverage report (gcov): ==="

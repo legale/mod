@@ -2,9 +2,13 @@
 
 #include <stdlib.h>
 
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
+
 // --- Ссылки (threadsafe, но низкоуровневые) ---
-void uevent_ref(uev_t *uev);  // atomic
-int uevent_unref(uev_t *uev); // atomic
+EXPORT_API void uevent_ref(uev_t *uev);  // atomic
+EXPORT_API int uevent_unref(uev_t *uev); // atomic
 
 // --- Проверки (internal, не требуют синхронизации) ---
 static inline bool internal_is_persist_timer(const uevent_t *ev) {

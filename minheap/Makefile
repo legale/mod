@@ -19,6 +19,7 @@ TARGET_LIB = lib$(NAME).a
 TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
+TEST_BINS = test
 
 .PHONY: run all clean perf leak coverage $(MODULES)
 
@@ -39,8 +40,9 @@ $(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 # test binary (static)
-$(TARGET_TEST): test.o $(TARGET_LIB)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+$(TARGET_TEST): test.o $(TARGET_LIB) $(TEST_MODULES)
+	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
+	$(addprefix $(addsuffix /lib,$(notdir $(TEST_MODULES))).a,$(TEST_MODULES)) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 	./test
 
@@ -78,7 +80,7 @@ leak: $(TARGET_TEST)
 
 # ------------------ покрытие ------------------
 
-COV_CFLAGS = --coverage -O0 -g
+COV_CFLAGS = --coverage -O0 -g -fPIC
 COV_LDFLAGS = --coverage
 COV_SRCS = $(SRC)
 

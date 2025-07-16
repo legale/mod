@@ -4,10 +4,13 @@ CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hi
 CFLAGS = $(CFLAGS_BASE) -fPIC
 LDFLAGS = -Wl,--gc-sections
 
-# зависимости
+# зависимости для основной сборки
 MODULES = ../timeutil ../syslog2 ../minheap
-
 EXTRA_LIBS = pthread
+
+# зависимости для тестов (можно оставить пустым)
+TEST_MODULES = ../timeutil ../syslog2 ../minheap
+TEST_LIBS = $(foreach mod,$(TEST_MODULES),$(mod)/lib$(notdir $(mod)).a)
 
 SRC = $(filter-out main.c test.c robust_test.c perftest.c, $(wildcard *.c))
 HDR = $(wildcard *.h)
@@ -19,8 +22,9 @@ TARGET_LIB = lib$(NAME).a
 TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
+TEST_BINS = test
 
-.PHONY: run all clean perf leak coverage $(MODULES)
+.PHONY: run all clean perf leak coverage $(MODULES) $(TEST_MODULES)
 
 check: test
 
@@ -30,28 +34,32 @@ all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
 $(MODULES):
 	$(MAKE) -C $@
 
+$(TEST_MODULES):
+	$(MAKE) -C $@
+
 # static library
 $(TARGET_LIB): $(OBJ_STATIC)
 	ar rcs $@ $^
 
-# shared library (жёсткая зависимость на зависимости)
+# shared library
 $(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
-	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 # test binary (static)
-$(TARGET_TEST): test.o $(TARGET_LIB) $(MODULES)
-	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
-	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) \
-	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+$(TARGET_TEST): test.o $(TARGET_LIB) $(TEST_MODULES)
+	echo $(TEST_LIBS)
+	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) $(TEST_LIBS) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 	./test
 
 space := $(empty) $(empty)
 
 # main binary (linked with .so)
 $(TARGET_MAIN): main.o $(TARGET_SO) $(MODULES)
-	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) $(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 run:
 	LD_LIBRARY_PATH=.:$(subst $(space),:,$(strip $(MODULES))) ./$(TARGET_MAIN)
@@ -67,6 +75,7 @@ run:
 clean:
 	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
 	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
+	$(foreach mod,$(TEST_MODULES),$(MAKE) -C $(mod) clean;)
 
 # ------------------ профилирование и утечки ------------------
 
@@ -80,12 +89,12 @@ leak: $(TARGET_TEST)
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET_TEST)
 
 # ------------------ покрытие ------------------
-
-COV_CFLAGS = --coverage -O0 -g
+COV_CFLAGS = --coverage -O0 -g -fPIC
 COV_LDFLAGS = --coverage
 COV_SRCS = $(SRC)
 
 coverage: clean
+	find . -name "*.gcda" -delete
 	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" $(TEST_BINS)
 	@for t in $(TEST_BINS); do ./$$t || exit 1; done
 	@echo "=== Coverage report (gcov): ==="
