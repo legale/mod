@@ -280,7 +280,7 @@ int run_example_code(int bits, float density, float print_freq_density) {
 #endif
 
   // Get the start time
-  clock_gettime(CLOCK_MONOTONIC, &end);
+  clock_gettime(CLOCK_MONOTONIC_RAW, &end);
 
   char *t = diff_timespec(start, end);
   printf("time passed: %s collisions: %d%%\n", t, coll);

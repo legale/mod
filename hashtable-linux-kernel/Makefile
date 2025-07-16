@@ -78,7 +78,7 @@ leak: $(TARGET_TEST)
 
 
 # ------------------ покрытие ------------------
-COV_CFLAGS = --coverage -O0 -g
+COV_CFLAGS = --coverage -O0 -g -fPIC
 COV_LDFLAGS = --coverage
 COV_SRCS = $(SRC)
 
