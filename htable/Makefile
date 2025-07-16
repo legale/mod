@@ -1,55 +1,46 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
-AR = ar
-ARFLAGS = rcs
-LIBNAME = libhtable.a
-OBJ = htable.o
-TEST_OBJ = test.o
-MAIN_OBJ = main.o
-LDFLAGS = -L.
-LIBS = -lhtable
+NAME = htable
+CC ?= gcc
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter \
+              -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS = $(CFLAGS_BASE) -fPIC
+LDFLAGS = -Wl,--gc-sections
+MODULES = ../list
+SRC = $(filter-out main.c test.c, $(wildcard *.c))
+HDR = $(wildcard *.h)
+OBJ_STATIC = $(SRC:.c=.o)
+OBJ_SHARED = $(SRC:.c=_shared.o)
+TARGET_LIB = lib$(NAME).a
+TARGET_SO = lib$(NAME).so
+TARGET_TEST = test
+TARGET_MAIN = main
 
-COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
-COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+.PHONY: all clean $(MODULES)
 
-all: $(LIBNAME) main test
+all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_TEST) $(TARGET_MAIN)
 
-$(LIBNAME): $(OBJ)
-	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
+$(MODULES):
+	$(MAKE) -C $@
 
-htable.o: htable.c htable.h
-	$(CC) $(CFLAGS) -c htable.c
+$(TARGET_LIB): $(OBJ_STATIC)
+	ar rcs $@ $^
 
-main: $(MAIN_OBJ) $(LIBNAME)
-	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
+$(TARGET_SO): $(OBJ_SHARED)
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
-test: $(TEST_OBJ) $(LIBNAME)
-	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	        ./test $(TEST)
+$(TARGET_TEST): test.o $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-main.o: main.c htable.h
-	$(CC) $(CFLAGS) -c main.c
+$(TARGET_MAIN): main.o $(TARGET_SO)
+	$(CC) $(CFLAGS) -o $@ $^ -L. -l$(NAME) \
+$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
 
-test.o: test.c htable.h
-	$(CC) $(CFLAGS) -c test.c
+%.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-perf: test
-	@echo "Running valgrind callgrind profiler..."
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./test
-	callgrind_annotate --inclusive=yes --auto=yes callgrind.out
-
-leak: test
-	@echo "Running valgrind memcheck for memory leaks..."
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./test
+%_shared.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f *.o *.gcov *.gcno *.gcda $(LIBNAME) main test callgrind.out
-
-coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
-	@echo "=== Coverage report (gcov): ==="
-	@gcov htable.c | grep -A10 "File 'htable.c'"
-	@echo "=== Coverage report (summary): ==="
-	@gcov -b htable.c | grep -E 'Lines executed|Branches executed'
-
-.PHONY: all clean perf coverage
+	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)

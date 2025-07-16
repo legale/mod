@@ -3,21 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <time.h>
 
-static void (*log_func)(int, const char *, ...) = NULL;
-static int (*realtime_func)(struct timespec *) = NULL;
-
-int htable_mod_init(const htable_mod_init_args_t *args) {
-  if (!args) {
-    log_func = NULL;
-    realtime_func = NULL;
-    return 0;
-  }
-  log_func = args->log;
-  realtime_func = args->get_time;
-  return 0;
-}
+/* Simple hash table without external dependencies. */
 
 // Хеш-функция по ключу
 static inline unsigned int htable_hash(uintptr_t key, size_t capacity) {

@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <time.h>
-
 #include "../list/list.h" // Предполагаем, что list.h в родительском каталоге
 
 // Узел хэш-таблицы
@@ -58,11 +56,5 @@ void *htable_get(htable_t *ht, uintptr_t key);
  */
 void htable_del(htable_t *ht, uintptr_t key);
 
-typedef struct {
-  void (*log)(int, const char *, ...);
-  int (*get_time)(struct timespec *);
-} htable_mod_init_args_t;
-
-int htable_mod_init(const htable_mod_init_args_t *args);
 
 #endif // HTABLE_H
