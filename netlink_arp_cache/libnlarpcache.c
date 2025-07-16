@@ -56,7 +56,8 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   // добавляем \n если нужно
   if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-  (void)write(STDOUT_FILENO, buf, len);
+  ssize_t written = write(STDOUT_FILENO, buf, len);
+  (void)written;
 }
 
 __attribute__((weak)) uint64_t tu_get_current_time_ms();

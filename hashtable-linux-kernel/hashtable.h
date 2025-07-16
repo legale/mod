@@ -320,6 +320,9 @@ static inline void __hash_init(struct hlist_head *ht, unsigned int sz) {
 #define hash_add_bits(hashtable, bits, node, key) \
   hlist_add_head(node, &hashtable[calc_bkt(key, 1 << (bits))])
 
+#define hash_del_bits(hashtable, bits, node) \
+  hlist_del_init(node)
+
 /**
  * hash_hashed - check whether an object is in any hashtable
  * @node: the &struct hlist_node of the object to be checked
