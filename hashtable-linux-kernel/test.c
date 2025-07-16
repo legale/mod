@@ -10,10 +10,17 @@ struct string_entry {
   char *str;
 };
 
-static void free_string_entry(void *e) {
-  struct string_entry *se = e;
+static void free_string_entry(struct string_entry *se) {
   free(se->str);
   free(se);
+}
+
+// wrapper used by assoc_array to free both the entry and its data
+static void free_assoc_entry(void *e) {
+  assoc_array_entry_t *ae = e;
+  if (ae->data) free_string_entry(ae->data);
+  free(ae->key);
+  free(ae);
 }
 
 static void test_hashtable_basic(void) {
@@ -39,18 +46,10 @@ static void test_hashtable_basic(void) {
   PRINT_TEST_PASSED();
 }
 
-static int fill_entry(assoc_array_entry_t *entry, void *data, void *key, uint8_t key_size) {
-  entry->key = malloc(key_size);
-  if (!entry->key) return 1;
-  memcpy(entry->key, key, key_size);
-  entry->key_size = key_size;
-  entry->data = data;
-  return 0;
-}
 
 static void test_assoc_array_basic(void) {
   PRINT_TEST_START("assoc array basic");
-  assoc_array_t *arr = array_create(4, free_string_entry, fill_entry);
+  assoc_array_t *arr = array_create(4, free_assoc_entry, NULL);
   assert(arr);
   struct string_entry *e = malloc(sizeof(*e));
   e->str = strdup("bar");
@@ -60,7 +59,6 @@ static void test_assoc_array_basic(void) {
   assert(found && found->data == e);
   assert(array_del(arr, e->str, ksz) == 0);
   array_free(arr);
-  free_string_entry(e);
   PRINT_TEST_PASSED();
 }
 
