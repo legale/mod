@@ -1,5 +1,6 @@
 #include "../test_util.h"
 #include "libnl_getlink.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <time.h>

@@ -1,4 +1,6 @@
 #include "../syslog2/syslog2.h"
+#include "../test_util.h"
+#include "../timeutil/timeutil.h"
 
 #include "heap-inl.h"
 #include "minheap.h"
@@ -11,9 +13,6 @@
 #include <string.h>
 #include <sys/time.h> // gettimeofday
 #include <time.h>
-#include "../timeutil/timeutil.h"
-
-#include "../test_util.h"
 
 #define ASSERT_EQ_UINT64(actual, expected, msg)                                                                          \
   do {                                                                                                                   \
@@ -28,7 +27,6 @@ typedef struct {
   minheap_node_t heap_node;
   int value;
 } heap_value_t;
-
 
 static uint64_t get_current_time_ms() {
   struct timespec ts;
@@ -47,17 +45,24 @@ static uint64_t get_current_time_ms() {
  * Покрывает позитивный и негативный сценарии.
  */
 void test_create_and_free() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Create with valid capacity and free");
   minheap_t *heap = mh_create(10);
-  assert(heap != NULL && "minheap_create should succeed for non-zero capacity");
+  assert(heap != NULL && "minheap_create return not NULL expected");
   assert(heap->capacity == 10 && "Capacity should be set correctly");
   mh_free(heap);
   PRINT_TEST_PASSED();
 
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Create with zero capacity (negative case)");
   heap = mh_create(0);
   assert(heap == NULL && "minheap_create should fail for zero capacity");
   PRINT_TEST_PASSED();
+
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 /**
@@ -66,46 +71,53 @@ void test_create_and_free() {
  */
 
 void test_insert_null_heap() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Insert into NULL heap (negative case)");
   minheap_node_t node = {.key = 42};
   mh_insert(NULL, &node);
   PRINT_TEST_PASSED();
-}
-
-static int mcount = 0;
-
-void *test_malloc_fail_second(size_t size) {
-  mcount++;
-  if (mcount == 2) return NULL;
-  return malloc(size);
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_create_malloc_fail() {
+  reset_alloc_counters();
+  fail_malloc_at = 1;
   PRINT_TEST_START("Create heap with malloc failure (negative case)");
-  SET_MALLOC(NULL);
   minheap_t *heap = mh_create(10);
-  assert(heap == NULL && "minheap_create should fail if malloc fails");
-  UNSET_MALLOC;
+  assert(heap == NULL && "mh_create should fail if malloc fails on first call");
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 
   PRINT_TEST_INFO("test if malloc fail on second call");
-  mcount = 0;
-  SET_MALLOC(test_malloc_fail_second);
+  reset_alloc_counters();
+  fail_malloc_at = 2;
   heap = mh_create(10);
-  UNSET_MALLOC;
-  assert(heap == NULL && "minheap_create should fail if malloc fail on second call");
+  assert(heap == NULL && "mh_create should fail if malloc fails on second call");
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_insert_null_node() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Insert NULL node (negative case)");
   minheap_t *heap = mh_create(4);
   mh_insert(heap, NULL);
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_insert_overflow() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Insert overflow (negative case)");
   minheap_t *heap = mh_create(1);
   minheap_node_t node1 = {.key = 1};
@@ -115,86 +127,131 @@ void test_insert_overflow() {
   assert(heap->size == 1 && "Heap should not overflow");
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_free_null() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Free NULL heap (negative case)");
   mh_free(NULL);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
+
 void test_extract_min_null() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Extract min from NULL heap (negative case)");
   minheap_node_t *min = mh_extract_min(NULL);
   assert(min == NULL && "Should return NULL for NULL heap");
   PRINT_TEST_PASSED();
-}
-
-void test_extract_min_empty() {
-  PRINT_TEST_START("Extract min from empty heap (negative case)");
-  minheap_t *heap = mh_create(4);
-  minheap_node_t *min = mh_extract_min(heap);
-  assert(min == NULL && "Should return NULL for empty heap");
-  mh_free(heap);
-  PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_get_min_null() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Get min from NULL heap (negative case)");
   minheap_node_t *min = mh_get_min(NULL);
   assert(min == NULL && "Should return NULL for NULL heap");
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_get_min_empty() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Get min from empty heap (negative case)");
   minheap_t *heap = mh_create(4);
   minheap_node_t *min = mh_get_min(heap);
   assert(min == NULL && "Should return NULL for empty heap");
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
+}
+
+void test_extract_min_empty() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
+  PRINT_TEST_START("Extract min from empty heap (negative case)");
+  minheap_t *heap = mh_create(4);
+  minheap_node_t *min = mh_extract_min(heap);
+  assert(min == NULL && "Should return NULL for empty heap");
+  mh_free(heap);
+  PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_is_empty_null() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Is empty on NULL heap (negative case)");
   assert(mh_is_empty(NULL) == true && "NULL heap is empty");
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_get_size_null() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Get size on NULL heap (negative case)");
   assert(mh_get_size(NULL) == 0 && "NULL heap size is 0");
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_delete_value_null_heap() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Delete value from NULL heap (negative case)");
   minheap_node_t node = {.key = 42};
   mh_delete_node(NULL, &node);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_delete_value_null_node() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Delete NULL node (negative case)");
   minheap_t *heap = mh_create(4);
   mh_delete_node(heap, NULL);
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_delete_value_not_in_heap() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Delete node not in heap (negative case)");
   minheap_t *heap = mh_create(4);
   minheap_node_t node = {.key = 42};
   mh_delete_node(heap, &node); // node не в куче
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 /**
  * Принцип 1, 3, 7: Простой тест на вставку и получение минимального элемента.
  */
 void test_insert_and_get_min() {
+  reset_alloc_counters();
+  fail_malloc_at = 0;
   PRINT_TEST_START("Insert items and get minimum");
   minheap_t *heap = mh_create(5);
   heap_value_t v1 = {.heap_node = {.key = 50}, .value = 50};
@@ -216,6 +273,8 @@ void test_insert_and_get_min() {
 
   mh_free(heap);
   PRINT_TEST_PASSED();
+  reset_alloc_counters();
+  fail_malloc_at = 0;
 }
 
 void test_minheap_get_node() {
@@ -246,7 +305,6 @@ void test_minheap_get_node() {
   PRINT_TEST_PASSED();
 }
 
-
 void test_mh_map_functions() {
   PRINT_TEST_START("mh_map_set/get/del basic and edge cases");
   minheap_t dummy;
@@ -262,6 +320,8 @@ void test_mh_map_functions() {
 
   /* NULL node */
   PRINT_TEST_INFO("NULL node handling");
+  syslog2(LOG_DEBUG, "TEST SYSLOG");
+
   mh_map_set(&dummy, NULL, 1);
   mh_map_del(&dummy, NULL);
   assert(mh_map_get(&dummy, NULL) == -1 && "mh_map_get NULL node should return -1");
@@ -468,7 +528,7 @@ void test_stress_random_operations() {
 // --- Вспомогательная функция для измерения времени ---
 uint64_t get_time_usec() {
   struct timespec ts;
-  clock_gettime_fast(&ts, false);
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   return (uint64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 }
 

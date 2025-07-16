@@ -1,162 +1,88 @@
-# Compiler setup
-CC = gcc
-CC_MUSL = musl-gcc
+NAME = hashtable-linux-kernel
+CC ?= gcc
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS = $(CFLAGS_BASE) -fPIC
+LDFLAGS = -Wl,--gc-sections
 
-AR = ar
-CFLAGS += -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections
-ifdef JEMALLOC
-LDLIBS += -ljemalloc
-endif
+# зависимости
+MODULES = ../timeutil ../syslog2
 
-I += -I./ -I/usr/include -I$(UNITY_ROOT)/src
-I_MUSL = -I./ -I$(shell musl-gcc -print-file-name=include) -I$(UNITY_ROOT)/src
-LDLIBS +=
-LDDIRS += -L$(BD)
+EXTRA_LIBS = 
 
-# profiling flags
-CFLAGS_PERF += -g
+SRC = $(filter-out main.c test.c, $(wildcard *.c))
+HDR = $(wildcard *.h)
 
-# Output name and build directory
-NAME = ht
-BD = ./build
+OBJ_STATIC = $(SRC:.c=.o)
+OBJ_SHARED = $(SRC:.c=_shared.o)
 
-# Library and executable setup
-LIBNAME = hashtable
-SRC_LIB := hashtable.c deque.c assoc_array.c mock_mem_functions.c
-SRC_BIN := main.c
-ifdef LEAKCHECK
-LDDIRS += -L../leak_detector_c
-LDLIBS += -lleak_detector
-CFLAGS += -DLEAKCHECK
-endif
-SRC := $(SRC_LIB) $(SRC_BIN)
-OBJS := $(SRC:%.c=$(BD)/%.o)
-OBJS_LIB := $(SRC_LIB:%.c=$(BD)/%.o)
+TARGET_LIB = lib$(NAME).a
+TARGET_SO  = lib$(NAME).so
+TARGET_TEST = test
+TARGET_MAIN = main
 
+.PHONY: run all clean perf leak coverage $(MODULES)
 
-# Test setup
-UNITY_ROOT = ./unity
-TEST_SRCS := test/test_deque.c test/test_hashtable.c test/test_assoc_array.c test/test_assoc_array_net_data.c
-UNITY_SRC := $(UNITY_ROOT)/src/unity.c
-UNITY_OBJ := $(UNITY_SRC:%.c=$(BD)/%.o)
-TEST_OBJS := $(TEST_SRCS:%.c=$(BD)/%.o)
-TEST_EXECS := $(TEST_SRCS:%.c=$(BD)/%)
+all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
 
-# Phony targets for standard make commands
-.PHONY:  all
+# Собираем зависимости
+$(MODULES):
+	$(MAKE) -C $@
 
-all: $(NAME) build_dir static static_full shared test
+# static library
+$(TARGET_LIB): $(OBJ_STATIC)
+	ar rcs $@ $^
 
-# Create build directories
-build_dir:
-	@mkdir -p $(BD)
-	@mkdir -p $(BD)/test
-	@mkdir -p $(BD)/unity/src
+# shared library (жёсткая зависимость на зависимости)
+$(TARGET_SO): $(OBJ_SHARED) $(MODULES)
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
-# Main executable
-$(NAME): $(OBJS)
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDLIBS) $^ -o $(BD)/$(NAME)
-
-# Compile .c to .o
-$(BD)/%.o: %.c build_dir
-	$(CC) $(CFLAGS) $(I) -I$(UNITY_ROOT) $(LDDIRS) $(LDLIBS) -c $< -o $@
-
-# Static library
-staticlib: $(OBJS_LIB)
-	$(AR) rcs $(BD)/lib$(LIBNAME).a $^
-
-# Shared library
-sharedlib:
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDLIBS) $(SRC_LIB) -shared -fPIC -o $(BD)/lib$(LIBNAME).so
-
-# Executable linking with the static library
-static: staticlib
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(SRC_BIN) -L$(BD) -Wl,-Bstatic -l$(LIBNAME) -Wl,-Bdynamic -o $(BD)/$(NAME)_static
-
-static_full: staticlib
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(SRC_BIN) -L$(BD) -l$(LIBNAME) -static -o $(BD)/$(NAME)_staticfull 
-
-# Executable linking with the shared library
-shared: sharedlib
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDLIBS) $(SRC_BIN) -L$(BD) -Wl,-Bdynamic -l$(LIBNAME) -o $(BD)/$(NAME)_shared
+# test binary (static)
+$(TARGET_TEST): test.o $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 
-# code test coverage report generation
-coverage: test
-	@echo "Generating gcov reports..."
-	@for src_file in $(SRC_LIB); do \
-		gcov -n -o $(BD) $$src_file | grep -A 1 "File '$$src_file'"; \
-	done
+space := $(empty) $(empty)
 
-	@echo "Generating coverage report..."
-	@lcov --capture --directory $(BD) --output-file coverage.info
-	@genhtml coverage.info --output-directory coverage	
+# main binary (linked with .so)
+$(TARGET_MAIN): main.o $(TARGET_SO) $(MODULES)
+	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) $(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
-# Compile and run tests
-test: CFLAGS += -fprofile-arcs -ftest-coverage
-test: $(TEST_EXECS)
-        @for test_exec in $^ ; do \
-                name=$$(basename $$test_exec) ; \
-                if [ -z "$(TEST)" ] || [ "$$name" = "$(TEST)" ]; then \
-                        echo Running $$test_exec ; \
-                        $$test_exec $(TEST) ; \
-                fi ; \
-        done
+run:
+	LD_LIBRARY_PATH=.:$(subst $(space),:,$(strip $(MODULES))) ./$(TARGET_MAIN)
 
-# Rule to make each test executable
-$(BD)/%: $(BD)/%.o $(OBJS_LIB) $(UNITY_OBJ)
-	$(CC) $(CFLAGS) $(I) $(LDDIRS) $(LDLIBS) $^ -o $@
+# static .o
+%.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
+# shared .o
+%_shared.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
-# Добавляем новый рецепт для сборки с musl
-musl: CC = $(CC_MUSL)
-musl: I = $(I_MUSL)
-musl: all
-
-# Пример для сборки тестов с musl
-musl_test: CC = $(CC_MUSL)
-musl_test: I = $(I_MUSL)
-musl_test: test
-
-
-perf: CFLAGS += $(CFLAGS_PERF)
-perf: all
-	@echo "Running performance profiling..."
-	@sudo perf record $(BD)/$(NAME)_staticfull 22 0.5 0.000001
-	@sudo chmod 666 perf.data*
-	@perf report > perf_report.txt
-	@echo "Performance report saved to perf_report.txt"
-
-musl_perf: CC = $(CC_MUSL)
-musl_perf: I = $(I_MUSL)
-musl_perf: CFLAGS += $(CFLAGS_PERF)
-musl_perf: all
-	@echo "Running performance profiling..."
-	@sudo perf record $(BD)/$(NAME)_staticfull 22 0.5 0.000001
-	@sudo chmod 666 perf.data*
-	@perf report > perf_report_musl.txt
-	@echo "Performance report saved to perf_report_musl.txt"
-
-
-measure_time: static_full
-	@echo "Measuring execution time..."
-	@for i in $$(seq 1 10); do \
-		$(BD)/$(NAME)_staticfull 22 0.4 0.000001 | grep "time passed:"; \
-	done
-
-musl_measure_time: CC = $(CC_MUSL)
-musl_measure_time: I = $(I_MUSL)
-musl_measure_time: static_full
-	@echo "Measuring execution time..."
-	@for i in $$(seq 1 10); do \
-		$(BD)/$(NAME)_staticfull 22 0.4 0.000001 | grep "time passed:"; \
-	done
-
-
-# Clean up build directory and coverage data
 clean:
-	rm -rf $(BD)/*
-	rm -f *.gcda *.gcno *.info
-	rm -rf coverage
-	rm -rf perf.data*
+	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 
+# ------------------ профилирование и утечки ------------------
+
+perf: $(TARGET_TEST)
+	@echo "Running valgrind callgrind profiler..."
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./$(TARGET_TEST)
+	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
+
+leak: $(TARGET_TEST)
+	@echo "Running valgrind memcheck for memory leaks..."
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET_TEST)
+
+# ------------------ покрытие ------------------
+
+COV_CFLAGS = --coverage -O0 -g
+COV_LDFLAGS = --coverage
+coverage: clean
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" $(TARGET_TEST)
+	@echo "=== Coverage report (gcov): ==="
+	@gcov minheap.c | grep -A10 "File 'minheap.c'"
+	@echo "=== Coverage report (summary): ==="
+	@gcov -b minheap.c | grep -E 'Lines executed|Branches executed'

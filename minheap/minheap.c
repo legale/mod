@@ -8,7 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 
-// logger fallback
+// logger and timeutil fallback
 #ifdef IS_DYNAMIC_LIB
 #include "../syslog2/syslog2.h"   // жёсткая зависимость
 #include "../timeutil/timeutil.h" // жёсткая зависимость
@@ -31,6 +31,14 @@
 #define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
 #define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
 #define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+
+__attribute__((weak)) void *malloc(size_t size);
+__attribute__((weak)) void *calloc(size_t nmemb, size_t size);
+__attribute__((weak)) void *realloc(void *ptr, size_t size);
+__attribute__((weak)) void free(void *ptr);
+
+__attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
+void setup_syslog2(const char *ident, int level, bool use_syslog) {}
 
 __attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
 void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {

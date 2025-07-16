@@ -1,31 +1,16 @@
-#include "libnlarpcache.h"
 #include "../syslog2/syslog2.h"
+#include "../test_util.h"
+#include "libnlarpcache.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <linux/rtnetlink.h>
 #include <stdio.h>
 #include <string.h>
-#include <errno.h>
+#include <sys/select.h>
 #include <time.h>
 
-static int log_called = 0;
-static int time_called = 0;
-
-static void mock_log(int pri, const char *fmt, ...) {
-  (void)pri;
-  (void)fmt;
-  log_called++;
-}
-
-static int mock_time(struct timespec *ts) {
-  if (ts) {
-    ts->tv_sec = 0;
-    ts->tv_nsec = 0;
-  }
-  time_called++;
-  return 0;
-}
-
+// Подмена select для имитации EINTR
 int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
            struct timeval *timeout) {
   (void)nfds;
@@ -37,9 +22,14 @@ int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
   return -1;
 }
 
+static void reset_mocks(void) {
+  reset_alloc_counters();
+  // Нет нужды сбрасывать лог-счётчики, всё берём из test_util.h
+}
+
 static void test_parse_rtattr(void) {
-  nlarpcache_mod_init(&(netlink_arp_cache_mod_init_args_t){
-      .log = mock_log, .get_time = mock_time});
+  reset_mocks();
+  PRINT_TEST_START("parse_rtattr basic NDA_DST/NDA_LLADDR");
 
   unsigned char buf[256];
 
@@ -56,7 +46,6 @@ static void test_parse_rtattr(void) {
   unsigned len = RTA_SPACE(4) + RTA_SPACE(6);
   struct rtattr *tb[NDA_MAX + 1] = {0};
   parse_rtattr(tb, NDA_MAX, rta1, len);
-  assert(time_called == 1);
 
   assert(tb[NDA_DST] == rta1);
   assert(tb[NDA_LLADDR] == rta2);
@@ -75,12 +64,17 @@ static void test_parse_rtattr(void) {
   send_recv(&req, req.n.nlmsg_len, &rb);
   free(rb);
 
-  assert(log_called == 1);
   PRINT_TEST_PASSED();
+  reset_mocks();
 }
 
 int main(int argc, char **argv) {
-  struct test_entry tests[] = {{"parse_rtattr", test_parse_rtattr}};
+  reset_alloc_counters();
+  reset_mocks();
+
+  struct test_entry tests[] = {
+      {"parse_rtattr", test_parse_rtattr},
+  };
   int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
   if (!rc && argc == 1)
     printf(KGRN "====== All netlink_arp_cache tests passed! ======\n" KNRM);

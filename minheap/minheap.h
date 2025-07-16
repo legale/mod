@@ -9,17 +9,14 @@
 #define _GNU_SOURCE
 #endif //_GNU_SOURCE
 
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
 
-
 #ifndef EXPORT_API
 #define EXPORT_API __attribute__((visibility("default")))
 #endif
-
 
 #ifndef container_of
 #define container_of(ptr, type, member)                \
@@ -78,6 +75,5 @@ typedef struct {
   void (*log)(int, const char *, ...);
   int (*get_time)(struct timespec *);
 } minheap_mod_init_args_t;
-
 
 #endif /* LIBMINHEAP_MINHEAP_H */

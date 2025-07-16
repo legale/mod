@@ -1,55 +1,41 @@
 #ifndef NL_MON_H
 #define NL_MON_H
 
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
+#endif //_POSIX_SOURCE
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif //_GNU_SOURCE
+
 #include <stdint.h>
 #include <stddef.h>
 #include <time.h>
+#include <net/if.h>
 
-// Заглушка для uevent_t, предполагаем, что определена где-то в коде
-typedef struct uevent_s uevent_t;
 
-// Тип указателя на функцию для паузы
-typedef void (*pause_fn_t)(void);
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
 
-// Структура для аргументов callback'а
-typedef struct {
-  const char *ifname;
-  pause_fn_t tu_pause_start;
-  pause_fn_t tu_pause_end;
-} nl_cb_arg_t;
+// События интерфейса
+#define NLMON_EVENT_LINK_UP   0x1
+#define NLMON_EVENT_LINK_DOWN 0x2
+
+typedef void (*nl_cb_func_t)(const char *ifname, uint32_t events, void *arg);
 
 typedef struct {
     const char **ifnames;  // NULL-terminated array, may be NULL/empty
     uint32_t events;       // bit mask of monitored events
-    void (*cb)(const char *ifname, uint32_t events, void *arg);
+    nl_cb_func_t cb;
     void *arg;
 } nlmon_filter_t;
 
-typedef struct nlmon_test_msg {
-  char *buf;
-  size_t len;
-} nlmon_test_msg_t;
-
-int nlmon_install_filters(const nlmon_filter_t *filters, size_t filter_cnt);
-void nlmon_clear_filters(void);
-
-#define NLMON_EVENT_LINK_UP 0x1
-#define NLMON_EVENT_LINK_DOWN 0x2
-
-// Инициализация Netlink-мониторинга
-int init_netlink_monitor();
-
-// Деинициализация Netlink-мониторинга
-void deinit_netlink_monitor(int fd);
-
-// Callback для обработки Netlink-событий
-void nl_handler_cb(uevent_t *ev, int fd, short events);
-
-typedef struct {
-  void (*log)(int, const char *, ...);
-  int (*get_time)(struct timespec *);
-} nlmon_mod_init_args_t;
-
-int nlmon_mod_init(const nlmon_mod_init_args_t *args);
+// API для работы с фильтрами и мониторингом
+EXPORT_API int nlmon_add_filter(const nlmon_filter_t *filter);
+EXPORT_API int nlmon_remove_filter(const nlmon_filter_t *filter);
+EXPORT_API int nlmon_list_filters(void);
+EXPORT_API int nlmon_run(int timeout_sec);
 
 #endif // NL_MON_H

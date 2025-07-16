@@ -1,40 +1,81 @@
 #include <fcntl.h>
 #include <sys/stat.h> /* fchmod */
 #include <sys/time.h> /* timeval_t struct */
+#include <time.h>
 
 #include "libnlarpcache.h"
-#include "../syslog2/syslog2.h"
-#include "../timeutil/timeutil.h"
 #include <stdarg.h>
 
-static void default_log_cb(int pri, const char *fmt, ...) {
+
+// logger and timeutil fallback
+#ifdef IS_DYNAMIC_LIB
+#include "../syslog2/syslog2.h"   // жёсткая зависимость
+#include "../timeutil/timeutil.h" // жёсткая зависимость
+#endif
+
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
+
+#ifndef IS_DYNAMIC_LIB
+#include <stdarg.h>
+#include <syslog.h>
+#include <stdbool.h>
+
+#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+
+// unit conversion macros
+#define NS_PER_USEC 1000U
+#define USEC_PER_MS 1000U
+#define MS_PER_SEC 1000U
+#define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
+#define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
+#define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+
+__attribute__((weak)) void *malloc(size_t size);
+__attribute__((weak)) void *calloc(size_t nmemb, size_t size);
+__attribute__((weak)) void *realloc(void *ptr, size_t size);
+__attribute__((weak)) void free(void *ptr);
+
+__attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
+void setup_syslog2(const char *ident, int level, bool use_syslog) {}
+
+__attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  char buf[4096];
+  size_t sz = sizeof(buf);
   va_list ap;
-  va_start(ap, fmt);
-  char buf[512];
-  vsnprintf(buf, sizeof(buf), fmt, ap);
+
+  va_start(ap, nl);
+  int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+  len += vsnprintf(buf + len, sz - len, fmt, ap);
   va_end(ap);
-  syslog2_printf(pri, "%s", buf);
+
+  // ограничиваем длину если переполнено
+  if (len >= (int)sz) len = sz - 1;
+
+  // добавляем \n если нужно
+  if (nl && len < (int)sz - 1) buf[len++] = '\n';
+
+  write(STDOUT_FILENO, buf, len);
 }
 
-static nlarp_log_fn_t log_cb = default_log_cb;
-static nlarp_time_fn_t time_cb = tu_clock_gettime_realtime_fast;
-
-int nlarpcache_mod_init(const netlink_arp_cache_mod_init_args_t *args) {
-  if (!args) {
-    log_cb = default_log_cb;
-    time_cb = tu_clock_gettime_realtime_fast;
-  } else {
-    log_cb = args->log ? args->log : default_log_cb;
-    time_cb = args->get_time ? args->get_time : tu_clock_gettime_realtime_fast;
+__attribute__((weak)) uint64_t get_current_time_ms();
+uint64_t get_current_time_ms() {
+  struct timespec ts;
+  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  if (ret != 0) {
+    syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
+    return 0U;
   }
-  return 0;
+  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
 }
+#endif // IS_DYNAMIC_LIB
+// logger END
+
 
 void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len) {
-  if (time_cb) {
-    struct timespec ts;
-    time_cb(&ts);
-  }
+
   /* loop over all rtattributes */
   while (RTA_OK(rta, len) && max--) {
     tb[rta->rta_type] = rta;  /* store attribute ptr to the tb array */
@@ -68,11 +109,7 @@ ssize_t send_recv(const void *send_buf, size_t send_buf_len, void **buf) {
   /* send message */
   status = send(sd, send_buf, send_buf_len, 0);
   if (status < 0) {
-    if (time_cb) {
-      struct timespec ts;
-      time_cb(&ts);
-    }
-    log_cb(LOG_ERR, "send %zd %d", status, errno);
+    syslog2(LOG_ERR, "send %zd %d", status, errno);
   }
   /* get an answer */
   /*first we need to find out buffer size needed */
@@ -91,19 +128,13 @@ ssize_t send_recv(const void *send_buf, size_t send_buf_len, void **buf) {
     return ret;
   } else if (ret < 0) {
     if (errno == EINTR) {
-      if (time_cb) {
-        struct timespec ts;
-        time_cb(&ts);
-      }
-      log_cb(LOG_WARNING, "select EINTR");
+
+      syslog2(LOG_WARNING, "select EINTR");
       close(sd);
       return ret;
     }
-    if (time_cb) {
-      struct timespec ts;
-      time_cb(&ts);
-    }
-    log_cb(LOG_ERR, "select error=%s", strerror(errno));
+
+    syslog2(LOG_ERR, "select error=%s", strerror(errno));
     close(sd);
     return ret;
   }
@@ -116,11 +147,7 @@ ssize_t send_recv(const void *send_buf, size_t send_buf_len, void **buf) {
    */
   status = recv(sd, *buf, expected_buf_size, MSG_PEEK | MSG_TRUNC | MSG_DONTWAIT);
   if (status < 0) {
-    if (time_cb) {
-      struct timespec ts;
-      time_cb(&ts);
-    }
-    log_cb(LOG_ERR, "recv %zd %d", status, errno);
+    syslog2(LOG_ERR, "recv %zd %d", status, errno);
   }
   if (status > expected_buf_size) {
     expected_buf_size = status;              /* this is real size */
@@ -129,21 +156,13 @@ ssize_t send_recv(const void *send_buf, size_t send_buf_len, void **buf) {
     status = recv(sd, *buf, expected_buf_size, MSG_DONTWAIT); /* now we get the full message */
     buf_size = status;                                        /* save real buffer bsize */
     if (status < 0) {
-      if (time_cb) {
-        struct timespec ts;
-        time_cb(&ts);
-      }
-      log_cb(LOG_ERR, "recv %zd %d", status, errno);
+      syslog2(LOG_ERR, "recv %zd %d", status, errno);
     }
   }
 
   status = close(sd); /* close socket */
   if (status < 0) {
-    if (time_cb) {
-      struct timespec ts;
-      time_cb(&ts);
-    }
-    log_cb(LOG_ERR, "recv %zd %d", status, errno);
+    syslog2(LOG_ERR, "recv %zd %d", status, errno);
   }
   return buf_size;
 }

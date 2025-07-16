@@ -1,12 +1,13 @@
 NAME = minheap
 CC ?= gcc
-CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter \
-              -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
 CFLAGS = $(CFLAGS_BASE) -fPIC
 LDFLAGS = -Wl,--gc-sections
 
-# зависимости (timeutil syslog2)
+# зависимости
 MODULES = ../timeutil ../syslog2
+
+EXTRA_LIBS = 
 
 SRC = $(filter-out main.c test.c, $(wildcard *.c))
 HDR = $(wildcard *.h)
@@ -19,7 +20,7 @@ TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
 
-.PHONY: all clean perf leak coverage $(MODULES)
+.PHONY: run all clean perf leak coverage $(MODULES)
 
 all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
 
@@ -32,18 +33,25 @@ $(TARGET_LIB): $(OBJ_STATIC)
 	ar rcs $@ $^
 
 # shared library (жёсткая зависимость на зависимости)
-$(TARGET_SO): $(OBJ_SHARED)
+$(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
-	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 # test binary (static)
 $(TARGET_TEST): test.o $(TARGET_LIB)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+
+
+space := $(empty) $(empty)
 
 # main binary (linked with .so)
-$(TARGET_MAIN): main.o $(TARGET_SO)
-	$(CC) $(CFLAGS) -o $@ $^ -L. -l$(NAME) \
-	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS)
+$(TARGET_MAIN): main.o $(TARGET_SO) $(MODULES)
+	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) $(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+
+run:
+	LD_LIBRARY_PATH=.:$(subst $(space),:,$(strip $(MODULES))) ./$(TARGET_MAIN)
 
 # static .o
 %.o: %.c $(HDR)

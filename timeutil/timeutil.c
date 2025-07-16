@@ -287,7 +287,9 @@ void tu_init() {
 }
 
 /* вернуть текущее (зимнее) смещение UTC */
-int64_t tu_get_cached_tz_off(void) { return g_tz.standard_offset; }
+int64_t tu_get_cached_tz_off() {
+  return g_tz.standard_offset;
+}
 
 uint64_t tu_clock_gettime_monotonic_ms(void) {
   struct timespec ts;

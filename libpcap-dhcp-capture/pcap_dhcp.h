@@ -9,6 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
 
 /*
  * an IPv4 address from a packet data buffer; it was introduced in reaction
@@ -64,25 +69,23 @@ typedef signed char nd_int8_t[1];
  */
 
 struct bootp {
-  nd_uint8_t bp_op;            /* packet opcode type */
-  nd_uint8_t bp_htype;         /* hardware addr type */
-  nd_uint8_t bp_hlen;          /* hardware addr length */
-  nd_uint8_t bp_hops;          /* gateway hops */
-  nd_uint32_t bp_xid;          /* transaction ID */
-  nd_uint16_t bp_secs;         /* seconds since boot began */
-  nd_uint16_t bp_flags;        /* flags - see bootp_flag_values[]
-                                  in print-bootp.c */
-  nd_ipv4 bp_ciaddr;           /* client IP address */
-  nd_ipv4 bp_yiaddr;           /* 'your' IP address */
-  nd_ipv4 bp_siaddr;           /* server IP address */
-  nd_ipv4 bp_giaddr;           /* gateway IP address */
-  nd_byte bp_chaddr[16];       /* client hardware address */
-  nd_byte bp_sname[64];        /* server host name */
-  nd_byte bp_file[128];        /* boot file name */
-  nd_byte bp_vend[64];         /* vendor-specific area */
+  nd_uint8_t bp_op;      /* packet opcode type */
+  nd_uint8_t bp_htype;   /* hardware addr type */
+  nd_uint8_t bp_hlen;    /* hardware addr length */
+  nd_uint8_t bp_hops;    /* gateway hops */
+  nd_uint32_t bp_xid;    /* transaction ID */
+  nd_uint16_t bp_secs;   /* seconds since boot began */
+  nd_uint16_t bp_flags;  /* flags - see bootp_flag_values[]
+                            in print-bootp.c */
+  nd_ipv4 bp_ciaddr;     /* client IP address */
+  nd_ipv4 bp_yiaddr;     /* 'your' IP address */
+  nd_ipv4 bp_siaddr;     /* server IP address */
+  nd_ipv4 bp_giaddr;     /* gateway IP address */
+  nd_byte bp_chaddr[16]; /* client hardware address */
+  nd_byte bp_sname[64];  /* server host name */
+  nd_byte bp_file[128];  /* boot file name */
+  nd_byte bp_vend[64];   /* vendor-specific area */
 };
-
-
 
 struct vlan_header {
   uint16_t ether_type; /* packet type ID field	*/
@@ -103,11 +106,10 @@ typedef struct pcap_dhcp_user {
   void *callback_arg; /* callback_arg */
 } pcap_dhcp_user_s;
 
-pcap_t *dhcp_pcap_open_live(const char *device);
+EXPORT_API pcap_t *dhcp_pcap_open_live(const char *device);
 
-const char *tok2str(const struct tok *lp, const char *fmt, const u_int v);
-
-void dhcp_packet_handler(u_char *args, const struct pcap_pkthdr *h, const uint8_t *p);
-char *parse_vendor_specific_option_12(const nd_byte *vend_data, size_t vend_len);
-size_t calc_vendor_specific_size(struct bootp *sample);
+EXPORT_API const char *tok2str(const struct tok *lp, const char *fmt, const unsigned int v);
+EXPORT_API void dhcp_packet_handler(uint8_t *args, const struct pcap_pkthdr *h, const uint8_t *p);
+EXPORT_API char *parse_vendor_specific_option_12(const nd_byte *vend_data, size_t vend_len);
+EXPORT_API size_t calc_vendor_specific_size(struct bootp *sample);
 #endif /* pcap_dhcp.h */

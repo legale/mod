@@ -1,52 +1,88 @@
-CC = gcc
-CFLAGS = -Wall -Wextra -O3 -Wno-unused-parameter -ffunction-sections -fdata-sections -ggdb
-AR = ar
-ARFLAGS = rcs
-LIBNAME = libleak_detector.a
-OBJ = leak_detector.o
-TEST_OBJ = test.o
-MAIN_OBJ = main.o
+NAME = leak_detector_c
+CC ?= gcc
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS = $(CFLAGS_BASE) -fPIC
+LDFLAGS = -Wl,--gc-sections
 
-LDFLAGS = -L.
-LIBS = -lleak_detector
+# зависимости
+MODULES = 
 
-COV_CFLAGS = $(CFLAGS) -O0 -g -fprofile-arcs -ftest-coverage
-COV_LDFLAGS = $(LDFLAGS) -fprofile-arcs -ftest-coverage
+EXTRA_LIBS = 
 
-ifeq ($(LEAKCHECK),1)
-  CFLAGS += -DLEAKCHECK
-  COV_CFLAGS += -DLEAKCHECK
-endif
+SRC = $(filter-out main.c test.c, $(wildcard *.c))
+HDR = $(wildcard *.h)
 
-all: $(LIBNAME) main test
+OBJ_STATIC = $(SRC:.c=.o)
+OBJ_SHARED = $(SRC:.c=_shared.o)
 
-$(LIBNAME): $(OBJ)
-	$(AR) $(ARFLAGS) $(LIBNAME) $(OBJ)
+TARGET_LIB = lib$(NAME).a
+TARGET_SO  = lib$(NAME).so
+TARGET_TEST = test
+TARGET_MAIN = main
 
-leak_detector.o: leak_detector.c leak_detector.h
-	$(CC) $(CFLAGS) -c leak_detector.c
+.PHONY: run all clean perf leak coverage $(MODULES)
 
-main: $(MAIN_OBJ) $(LIBNAME)
-	$(CC) $(CFLAGS) $(MAIN_OBJ) -o main $(LDFLAGS) $(LIBS)
+all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
 
-test: $(TEST_OBJ) $(LIBNAME)
-	        $(CC) $(CFLAGS) $(TEST_OBJ) -o test $(LDFLAGS) $(LIBS)
-	        ./test $(TEST)
+# Собираем зависимости
+$(MODULES):
+	$(MAKE) -C $@
 
-main.o: main.c leak_detector.h
-	$(CC) $(CFLAGS) -c main.c
+# static library
+$(TARGET_LIB): $(OBJ_STATIC)
+	ar rcs $@ $^
 
-test.o: test.c leak_detector.h
-	$(CC) $(CFLAGS) -c test.c
+# shared library (жёсткая зависимость на зависимости)
+$(TARGET_SO): $(OBJ_SHARED) $(MODULES)
+	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+
+# test binary (static)
+$(TARGET_TEST): test.o $(TARGET_LIB)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+
+
+space := $(empty) $(empty)
+
+# main binary (linked with .so)
+$(TARGET_MAIN): main.o $(TARGET_SO) $(MODULES)
+	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) $(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+
+run:
+	LD_LIBRARY_PATH=.:$(subst $(space),:,$(strip $(MODULES))) ./$(TARGET_MAIN)
+
+# static .o
+%.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# shared .o
+%_shared.o: %.c $(HDR)
+	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f *.o *.gc* $(LIBNAME) main test
+	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 
+# ------------------ профилирование и утечки ------------------
+
+perf: $(TARGET_TEST)
+	@echo "Running valgrind callgrind profiler..."
+	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./$(TARGET_TEST)
+	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
+
+leak: $(TARGET_TEST)
+	@echo "Running valgrind memcheck for memory leaks..."
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET_TEST)
+
+# ------------------ покрытие ------------------
+
+COV_CFLAGS = --coverage -O0 -g
+COV_LDFLAGS = --coverage
 coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" test
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" $(TARGET_TEST)
 	@echo "=== Coverage report (gcov): ==="
-	@gcov leak_detector.c | grep -A10 "File 'leak_detector.c'"
+	@gcov minheap.c | grep -A10 "File 'minheap.c'"
 	@echo "=== Coverage report (summary): ==="
-	@gcov -b leak_detector.c | grep -E 'Lines executed|Branches executed'
-	
-.PHONY: all clean coverage
+	@gcov -b minheap.c | grep -E 'Lines executed|Branches executed'

@@ -35,6 +35,15 @@
 		"new": "c",
 		"ostream": "c",
 		"streambuf": "c",
-		"syslog.h": "c"
+		"syslog.h": "c",
+		"minheap_internal.h": "c",
+		"heap-inl.h": "c",
+		"types.h": "c",
+		"cstdlib": "c",
+		"libnlarpcache.h": "c",
+		"rtnetlink.h": "c",
+		"nlmon.h": "c",
+		"stddef.h": "c",
+		"netlink.h": "c"
 	}
 }

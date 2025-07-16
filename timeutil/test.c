@@ -143,7 +143,7 @@ static void test_atomic_ts(void) {
 
 static void test_tz_offset(void) {
   PRINT_TEST_START("tz offset sane");
-  int64_t off = tu_get_tz_off();
+  int64_t off = tu_get_cached_tz_off();
   PRINT_TEST_INFO("offset=%ld", (long)off);
   assert(off >= -(14 * 3600) && off <= 14 * 3600 && off % 60 == 0);
   PRINT_TEST_PASSED();
