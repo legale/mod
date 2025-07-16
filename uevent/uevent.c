@@ -62,13 +62,11 @@ __attribute__((weak)) void syslog2_(int pri, const char *func, const char *file,
   // добавляем \n если нужно
   if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-  ssize_t written = write(STDOUT_FILENO, buf, len);
-  (void)written;
+  (void)write(STDOUT_FILENO, buf, len);
 }
 
-__attribute__((weak))
-uint64_t
-tu_clock_gettime_monotonic_ms() {
+__attribute__((weak)) uint64_t tu_clock_gettime_monotonic_ms();
+uint64_t tu_clock_gettime_monotonic_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -95,27 +93,24 @@ __attribute__((weak)) int msleep(uint64_t ms) {
 #endif
 
 struct uevent_base_t {
-  int epoll_fd;                   // epoll fd
-  uevent_t wakeup_event;          // служебное событие для пробуждения epoll_wait
-  _Atomic bool wakeup_fd_written; // true, если в wakeup_fd уже записано значение
-  _Atomic bool running;           // true, если event loop запущен
-  _Atomic bool stopped;           // true, если event loop завершился
-  pthread_mutex_t base_mut;       // мьютекс для защиты event_list и timer_heap
-  pthread_cond_t base_cond;       // условие к мьютексу
-  pthread_mutex_t slots_mut;      // мьютекс для защиты слотов ev_arr
-  // pthread_mutex_t zombie_mut;        // мьютекс для защиты слотов списка зомби событий
-  struct epoll_event *events; // массив epoll событий
-  unsigned int max_events;    // размер массива events
-  // struct list_head event_list;       // список всех событий в базе
-  // struct list_head zombie_list;      // список всех событий в базе
+  uevent_t wakeup_event;             // служебное событие для пробуждения epoll_wait
+  pthread_mutex_t base_mut;          // мьютекс для защиты event_list и timer_heap
+  pthread_mutex_t slots_mut;         // мьютекс для защиты слотов ev_arr
+  pthread_cond_t base_cond;          // условие к мьютексу
+  struct epoll_event *events;        // массив epoll событий
   minheap_t *timer_heap;             // куча таймеров (minheap)
-  _Atomic int num_active_fd;         // число активных fd-событий
-  _Atomic int num_active_timers;     // число активных таймеров
   uevent_worker_pool_t *worker_pool; // пул воркеров для асинхронных колбэков
   uev_t *uev_arr;                    // массив с обертками событий
+  int epoll_fd;                      // epoll fd
+  unsigned int max_events;           // размер массива events
+  unsigned int *free_uev_arr;        // массив индексов свободных слотов ev_arr
   unsigned int uev_arr_sz;           // размер массива с обертками событий
   unsigned int free_uev_arr_cnt;     // кол-во свободных слотов
-  unsigned int *free_uev_arr;        // массив индексов свободных слотов ev_arr
+  _Atomic int num_active_fd;         // число активных fd-событий
+  _Atomic int num_active_timers;     // число активных таймеров
+  _Atomic bool wakeup_fd_written;    // true, если в wakeup_fd уже записано значение
+  _Atomic bool running;              // true, если event loop запущен
+  _Atomic bool stopped;              // true, если event loop завершился
 };
 
 // forward declaration

@@ -9,7 +9,7 @@ MODULES = ../timeutil ../syslog2 ../minheap
 EXTRA_LIBS = pthread
 
 # зависимости для тестов (можно оставить пустым)
-TEST_MODULES = ../timeutil ../syslog2 ../minheap
+TEST_MODULES = ../minheap
 TEST_LIBS = $(foreach mod,$(TEST_MODULES),$(mod)/lib$(notdir $(mod)).a)
 
 SRC = $(filter-out main.c test.c robust_test.c perftest.c, $(wildcard *.c))
