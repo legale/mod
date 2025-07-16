@@ -1,15 +1,11 @@
 # arp cache getter via netlink kernel socket
 No dependencies program.
 
-### Initialization
+### Customization
 
-Use `nlarpcache_mod_init()` to override logging or time callbacks:
-
-```c
-nlarpcache_mod_init(&(netlink_arp_cache_mod_init_args_t){
-  .log = custom_log,
-  .get_time = custom_time});
-```
+Logging and timing helpers are provided via weak fallback functions such as
+`syslog2_` and `get_current_time_ms`.  Linking with the `syslog2` and
+`timeutil` modules or supplying your own implementations overrides these stubs.
 
 ## Howto build
 ```
