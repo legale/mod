@@ -1,19 +1,6 @@
 #include "list.h"
-#include <time.h>
 
-static void (*log_func)(int, const char *, ...) = NULL;
-static int (*realtime_func)(struct timespec *) = NULL;
-
-int list_mod_init(const list_mod_init_args_t *args) {
-  if (!args) {
-    log_func = NULL;
-    realtime_func = NULL;
-    return 0;
-  }
-  log_func = args->log;
-  realtime_func = args->get_time;
-  return 0;
-}
+/* The list helpers are simple wrappers over the Linux kernel macros. */
 
 int list_is_empty(const struct list_head *head) {
   return list_empty(head);
