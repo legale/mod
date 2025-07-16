@@ -6,6 +6,10 @@
 #ifndef __HASHTABLE_H__
 #define __HASHTABLE_H__
 
+#ifndef EXPORT_API
+#define EXPORT_API __attribute__((visibility("default")))
+#endif
+
 #include <stdlib.h>
 
 #include "array_size.h"

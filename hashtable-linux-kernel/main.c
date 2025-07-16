@@ -203,7 +203,7 @@ int main(int argc, char *argv[]) {
 
 int run_example_code(int bits, float density, float print_freq_density) {
   struct timespec start, end;
-  clock_gettime(CLOCK_MONOTONIC, &start);
+  clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
 
   // Initialize the associative array
