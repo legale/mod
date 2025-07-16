@@ -1,7 +1,7 @@
 NAME = timeutil
 CC ?= gcc
-CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
-CFLAGS = $(CFLAGS_BASE) -fPIC
+CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections 
+CFLAGS = $(CFLAGS_BASE) -fPIC -flto
 LDFLAGS = -Wl,--gc-sections
 
 # зависимости

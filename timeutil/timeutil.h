@@ -57,6 +57,13 @@ EXPORT_API void tu_update_mono_real_offset();
 EXPORT_API int tu_clock_gettime_local(struct timespec *ts);
 EXPORT_API int tu_clock_gettime_local_mono(struct timespec *ts);
 
+static inline int clock_gettime_mono(struct timespec *ts) {
+  return clock_gettime(CLOCK_MONOTONIC_RAW, ts);
+}
+
+static inline int clock_gettime_real(struct timespec *ts) {
+  return clock_gettime(CLOCK_REALTIME, ts);
+}
 
 EXPORT_API uint64_t tu_clock_gettime_monotonic_ms(void);
 EXPORT_API int64_t tu_get_cached_tz_off();
