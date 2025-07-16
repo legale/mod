@@ -13,7 +13,11 @@ int main(void) {
   struct list_head head;
   INIT_LIST_HEAD(&head);
 
-  struct item items[3] = {{"first", 1}, {"second", 2}, {"third", 3}};
+  struct item items[3] = {
+      {"first", 1, {NULL, NULL}},
+      {"second", 2, {NULL, NULL}},
+      {"third", 3, {NULL, NULL}},
+  };
 
   for (int i = 0; i < 3; ++i) {
     INIT_LIST_HEAD(&items[i].node);
