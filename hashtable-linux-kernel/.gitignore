@@ -1,56 +1,37 @@
-# Prerequisites
-*.d
+#CMake
+/cmake-build*
 
-# Object files
-*.o
-*.ko
-*.obj
-*.elf
+#vscode
+/.vscode/**
+.vscode
 
-# Linker output
-*.ilk
-*.map
-*.exp
+#Eclipse
+/.settings/**
+.project
 
-# Precompiled Headers
-*.gch
-*.pch
+#Jetbrains
+/.idea/**
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
+#vim
+*.swp
+*.swo
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
+#binary
+/build/**
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
-
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
-
-build/**
-.vscode/**
+!.gitkeep
 build/
+
+# coverage files
+*.gcda
+*.gcno
+*.gcov
+
+# compiled binaries
+test
+main
+
+# object files and lib
+*.so
+*.a 
+*.o 

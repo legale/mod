@@ -21,9 +21,6 @@
 
 #include "libnl_getlink.h"
 
-
-
-
 // logger fallback
 #ifdef IS_DYNAMIC_LIB
 #include "../syslog2/syslog2.h" // жёсткая зависимость
@@ -36,28 +33,26 @@
 #ifndef IS_DYNAMIC_LIB
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
-__attribute__((weak))
-void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
-    char buf[4096];
-    size_t sz = sizeof(buf);
-    va_list ap;
+__attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  char buf[4096];
+  size_t sz = sizeof(buf);
+  va_list ap;
 
-    va_start(ap, nl);
-    int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
-    len += vsnprintf(buf + len, sz - len, fmt, ap);
-    va_end(ap);
+  va_start(ap, nl);
+  int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+  len += vsnprintf(buf + len, sz - len, fmt, ap);
+  va_end(ap);
 
-    // ограничиваем длину если переполнено
-    if (len >= (int)sz) len = sz - 1;
+  // ограничиваем длину если переполнено
+  if (len >= (int)sz) len = sz - 1;
 
-    // добавляем \n если нужно
-    if (nl && len < (int)sz - 1) buf[len++] = '\n';
+  // добавляем \n если нужно
+  if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-    write(STDOUT_FILENO, buf, len);
+  (void)write(STDOUT_FILENO, buf, len);
 }
-#endif //IS_DYNAMIC_LIB
+#endif // IS_DYNAMIC_LIB
 // logger END
-
 
 #define parse_rtattr_nested(tb, max, rta) \
   (parse_rtattr((tb), (max), RTA_DATA(rta), RTA_PAYLOAD(rta)))
@@ -352,4 +347,3 @@ int get_netdev(struct slist_head *list) {
   close(sd); /* close socket */
   return 0;
 }
-

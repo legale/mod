@@ -31,8 +31,6 @@
 #define EPOLL_MAX_TIMEOUT_MS 60000U
 #define UEVENT_DEFAULT_WORKERS_NUM 6
 
-
-
 // logger fallback
 #ifdef IS_DYNAMIC_LIB
 #include "../syslog2/syslog2.h" // жёсткая зависимость
@@ -45,33 +43,31 @@
 #ifndef IS_DYNAMIC_LIB
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
-
 __attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
 void setup_syslog2(const char *ident, int level, bool use_syslog) {}
 
+__attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  char buf[4096];
+  size_t sz = sizeof(buf);
+  va_list ap;
 
-__attribute__((weak))
-void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
-    char buf[4096];
-    size_t sz = sizeof(buf);
-    va_list ap;
+  va_start(ap, nl);
+  int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+  len += vsnprintf(buf + len, sz - len, fmt, ap);
+  va_end(ap);
 
-    va_start(ap, nl);
-    int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
-    len += vsnprintf(buf + len, sz - len, fmt, ap);
-    va_end(ap);
+  // ограничиваем длину если переполнено
+  if (len >= (int)sz) len = sz - 1;
 
-    // ограничиваем длину если переполнено
-    if (len >= (int)sz) len = sz - 1;
+  // добавляем \n если нужно
+  if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-    // добавляем \n если нужно
-    if (nl && len < (int)sz - 1) buf[len++] = '\n';
-
-    write(STDOUT_FILENO, buf, len);
+  (void)write(STDOUT_FILENO, buf, len);
 }
 
 __attribute__((weak))
-uint64_t tu_clock_gettime_monotonic_ms() {
+uint64_t
+tu_clock_gettime_monotonic_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -81,21 +77,16 @@ uint64_t tu_clock_gettime_monotonic_ms() {
   return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
 }
 
-__attribute__((weak))
-int syslog2_get_pri(){
+__attribute__((weak)) int syslog2_get_pri() {
   return 0;
 }
 
-__attribute__((weak))
-int msleep(uint64_t ms) {
+__attribute__((weak)) int msleep(uint64_t ms) {
   struct timespec ts = {.tv_sec = ms / MS_PER_SEC, .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
   return nanosleep(&ts, NULL);
 }
-#endif //IS_DYNAMIC_LIB
+#endif // IS_DYNAMIC_LIB
 // logger END
-
-
-
 
 #ifndef container_of
 #define container_of(ptr, type, member) \
@@ -653,12 +644,12 @@ static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t 
   // Логирование метрик
   uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
   syslog2(LOG_DEBUG,
-             "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
-             ATOM_LOAD_ACQ(uev->refcount),
-             ev->name,
-             diff_cron_to_exec,
-             duration,
-             cron_time);
+          "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
+          ATOM_LOAD_ACQ(uev->refcount),
+          ev->name,
+          diff_cron_to_exec,
+          duration,
+          cron_time);
 
   uevent_unlock(ev);
 }
@@ -1015,7 +1006,7 @@ static int epoll_wait_and_dispatch(uevent_base_t *base, int epoll_timeout) {
   uint64_t now = tu_clock_gettime_monotonic_ms();
   int64_t slept_ms = (int64_t)now - (int64_t)mark;
   syslog2(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "",
-             epoll_timeout, slept_ms);
+          epoll_timeout, slept_ms);
 
   if (nfds == -1) {
     if (errno == EINTR) return 0;

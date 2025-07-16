@@ -30,3 +30,8 @@ build/
 # compiled binaries
 test
 main
+
+# object files and lib
+*.so
+*.a 
+*.o 

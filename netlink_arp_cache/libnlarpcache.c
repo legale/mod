@@ -6,7 +6,6 @@
 #include "libnlarpcache.h"
 #include <stdarg.h>
 
-
 // logger and timeutil fallback
 #ifdef IS_DYNAMIC_LIB
 #include "../syslog2/syslog2.h"   // жёсткая зависимость
@@ -19,8 +18,8 @@
 
 #ifndef IS_DYNAMIC_LIB
 #include <stdarg.h>
-#include <syslog.h>
 #include <stdbool.h>
+#include <syslog.h>
 
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
@@ -57,11 +56,11 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   // добавляем \n если нужно
   if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-  write(STDOUT_FILENO, buf, len);
+  (void)write(STDOUT_FILENO, buf, len);
 }
 
-__attribute__((weak)) uint64_t tu_get_current_time_ms ();
-uint64_t tu_get_current_time_ms () {
+__attribute__((weak)) uint64_t tu_get_current_time_ms();
+uint64_t tu_get_current_time_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -72,7 +71,6 @@ uint64_t tu_get_current_time_ms () {
 }
 #endif // IS_DYNAMIC_LIB
 // logger END
-
 
 void parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, unsigned len) {
 

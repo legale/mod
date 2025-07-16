@@ -1,2 +1,37 @@
-main.o test.o uevent.o
+#CMake
+/cmake-build*
+
+#vscode
+/.vscode/**
+.vscode
+
+#Eclipse
+/.settings/**
+.project
+
+#Jetbrains
+/.idea/**
+
+#vim
+*.swp
+*.swo
+
+#binary
+/build/**
+
+!.gitkeep
 build/
+
+# coverage files
+*.gcda
+*.gcno
+*.gcov
+
+# compiled binaries
+test
+main
+
+# object files and lib
+*.so
+*.a 
+*.o 
