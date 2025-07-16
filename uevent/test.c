@@ -46,7 +46,6 @@ static void reset_fail_hooks(void) {
   fail_calloc = 0;
   fail_epoll_create1 = 0;
   fail_eventfd = 0;
-  uevent_reset_allocators();
 }
 
 void set_malloc_fail(int count) { fail_malloc = count; }
@@ -54,22 +53,6 @@ void set_calloc_fail(int count) { fail_calloc = count; }
 void set_epoll_create1_fail(int count) { fail_epoll_create1 = count; }
 void set_eventfd_fail(int count) { fail_eventfd = count; }
 
-static void *test_malloc(size_t size) __attribute__((unused));
-static void *test_malloc(size_t size) {
-  if (fail_malloc > 0) {
-    fail_malloc--;
-    return NULL;
-  }
-  return malloc(size);
-}
-
-static void *test_calloc(size_t nmemb, size_t size) {
-  if (fail_calloc > 0) {
-    fail_calloc--;
-    return NULL;
-  }
-  return calloc(nmemb, size);
-}
 
 int epoll_create1(int flags) {
   if (fail_epoll_create1 > 0) {
@@ -120,27 +103,9 @@ void run_test_in_fork_that_should_crash(void (*test_func)(void)) {
   }
 }
 
-// Test uevent_mod_init with custom hooks
-static int mock_log_calls = 0;
-static void mock_log(int pri, const char *fmt, ...) {
-  (void)pri;
-  (void)fmt;
-  mock_log_calls++;
-}
 
-static uint64_t mock_time_ms(void) { return 42; }
 
-void test_mod_init(void) {
-  PRINT_TEST_START("uevent_mod_init overrides");
-  uevent_mod_init_args_t args = {.log = mock_log, .time_ms = mock_time_ms};
-  mock_log_calls = 0;
-  uevent_mod_init(&args);
-  assert(get_current_time_ms() == 42);
-  uevent_log(LOG_DEBUG, "test");
-  assert(mock_log_calls == 1);
-  uevent_mod_init(NULL);
-  PRINT_TEST_PASSED();
-}
+
 
 // =============================================================================
 // ТЕСТЫ
@@ -782,7 +747,6 @@ void test_base_creation_failures() {
 
   before = get_open_fd_count();
   set_calloc_fail(1);
-  uevent_set_allocators(NULL, test_calloc);
   base = uevent_base_new_with_workers(8, 0);
   assert(base == NULL);
   reset_fail_hooks();
@@ -1352,9 +1316,9 @@ void test_real_world_load_simulation() {
     (void)event;
     cb_ctx_t *ctx = (cb_ctx_t *)arg;
     atomic_fetch_add(&ctx->count, 1);
-    uint64_t start = tu_clock_gettime_monotonic_fast_ms();
+    uint64_t start = tu_clock_gettime_monotonic_ms();
     if (ctx->duration_ms > 0) usleep(ctx->duration_ms * USEC_PER_MS);
-    uint64_t end = tu_clock_gettime_monotonic_fast_ms();
+    uint64_t end = tu_clock_gettime_monotonic_ms();
     PRINT_TEST_INFO("cb for name='%s' duration_ms=%" PRIu64 "", ev->name, (end - start));
   }
 
@@ -1541,7 +1505,6 @@ int main(int argc, char **argv) {
 #endif
 
   struct test_entry tests[] = {
-      {"mod_init", test_mod_init},
       {"static_persist_timer_recreate", test_static_persist_timer_recreate},
       {"real_world_load_simulation", test_real_world_load_simulation},
       {"refcount_during_callback_execution", test_refcount_during_callback_execution},
@@ -1588,8 +1551,6 @@ int main(int argc, char **argv) {
   int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
   if (argc > 1 || rc)
     return rc;
-
-  test_mod_init();
 
   test_static_persist_timer_recreate();
   test_real_world_load_simulation();

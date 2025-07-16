@@ -97,7 +97,7 @@ static void process_worker_task(uevent_worker_pool_t *pool, uevent_task_t *task)
     return;
   }
 
-  uint64_t cb_start_time = get_current_time_ms();
+  uint64_t cb_start_time = tu_clock_gettime_monotonic_ms();
   int64_t queue_delay = (int64_t)cb_start_time - (int64_t)task->cron_time;
 
   // логируем задержку в очереди
@@ -215,7 +215,7 @@ uevent_worker_pool_t *uevent_worker_pool_create(int num_workers) {
 
   if (num_workers <= 0) return NULL;
 
-  pool = UEV_CALLOC(1, sizeof(uevent_worker_pool_t));
+  pool = calloc(1, sizeof(uevent_worker_pool_t));
   if (pool == NULL) return NULL;
 
   pool->num_workers = num_workers;
@@ -228,7 +228,7 @@ uevent_worker_pool_t *uevent_worker_pool_create(int num_workers) {
   if (pthread_mutex_init(&pool->idle_mutex, NULL) != 0) goto fail_task_cond;
   if (pthread_cond_init(&pool->idle_cond, NULL) != 0) goto fail_idle_mutex;
 
-  pool->workers = UEV_CALLOC(num_workers, sizeof(pthread_t));
+  pool->workers = calloc(num_workers, sizeof(pthread_t));
   if (pool->workers == NULL) goto fail_idle_cond;
 
   for (i = 0; i < pool->num_workers; i++) {
@@ -270,7 +270,7 @@ void uevent_worker_pool_insert(uevent_worker_pool_t *pool, uev_t *uev, short tri
 
   TINIT;
   TMARK(10, "START");
-  uevent_task_t *task = UEV_MALLOC(sizeof(uevent_task_t));
+  uevent_task_t *task = malloc(sizeof(uevent_task_t));
   if (task == NULL) {
     syslog2(LOG_ERR, "Failed to allocate memory for uevent task");
     return;

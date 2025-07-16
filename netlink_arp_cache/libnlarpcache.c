@@ -60,8 +60,8 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   write(STDOUT_FILENO, buf, len);
 }
 
-__attribute__((weak)) uint64_t get_current_time_ms();
-uint64_t get_current_time_ms() {
+__attribute__((weak)) uint64_t tu_get_current_time_ms ();
+uint64_t tu_get_current_time_ms () {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {

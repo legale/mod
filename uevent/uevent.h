@@ -85,14 +85,14 @@ typedef struct uevent_base_t uevent_base_t;
   uint64_t __t_mark = 0;                                   \
   do {                                                     \
     if (!(syslog2_get_pri() & LOG_MASK(LOG_DEBUG))) break; \
-    __t_start = get_current_time_ms();                     \
+    __t_start = tu_clock_gettime_monotonic_ms();                  \
     __t_mark = __t_start;                                  \
   } while (0)
 
 #define TMARK(thr_ms, comment)                              \
   do {                                                      \
     if (!(syslog2_get_pri() & LOG_MASK(LOG_DEBUG))) break;  \
-    uint64_t __t_now = get_current_time_ms();               \
+    uint64_t __t_now = tu_clock_gettime_monotonic_ms();            \
     uint64_t __t_diff = __t_now - __t_mark;                 \
     if (!(thr_ms) || (__t_diff > (uint64_t)(thr_ms))) {     \
       syslog2(LOG_DEBUG, "[TMARK] %s delay_ms=%" PRIu64 "", \
@@ -184,7 +184,7 @@ EXPORT_API uevent_base_t *uevent_base_new(int max_events);
 EXPORT_API uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers);
 
 /* получает текущее монотонное время в мс */
-EXPORT_API uint64_t get_current_time_ms();
+EXPORT_API uint64_t tu_clock_gettime_monotonic_ms();
 
 EXPORT_API uev_t *uevent_try_ref(uev_t *uev); // atomic
 EXPORT_API bool uevent_put(uev_t *uev);       // atomic

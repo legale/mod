@@ -62,7 +62,7 @@ run:
 	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	rm -f *.gcov *.gcno $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
 	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 
 # ------------------ профилирование и утечки ------------------
@@ -80,9 +80,16 @@ leak: $(TARGET_TEST)
 
 COV_CFLAGS = --coverage -O0 -g
 COV_LDFLAGS = --coverage
+COV_SRCS = $(SRC)
+
 coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" $(TARGET_TEST)
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" $(TEST_BINS)
+	@for t in $(TEST_BINS); do ./$$t || exit 1; done
 	@echo "=== Coverage report (gcov): ==="
-	@gcov minheap.c | grep -A10 "File 'minheap.c'"
+	@for f in $(COV_SRCS); do \
+		gcov "$$f" | grep -A10 "File '$$f'"; \
+	done
 	@echo "=== Coverage report (summary): ==="
-	@gcov -b minheap.c | grep -E 'Lines executed|Branches executed'
+	@for f in $(COV_SRCS); do \
+		gcov -b "$$f" | grep -E 'Lines executed|Branches executed'; \
+	done

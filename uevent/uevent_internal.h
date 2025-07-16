@@ -2,19 +2,6 @@
 
 #include <stdlib.h>
 
-typedef void *(*uevent_malloc_func_t)(size_t);
-typedef void *(*uevent_calloc_func_t)(size_t, size_t);
-
-extern uevent_malloc_func_t uevent_malloc_hook;
-extern uevent_calloc_func_t uevent_calloc_hook;
-
-void uevent_set_allocators(uevent_malloc_func_t mfn,
-                           uevent_calloc_func_t cfn);
-void uevent_reset_allocators(void);
-
-#define UEV_MALLOC(sz) malloc(sz)
-#define UEV_CALLOC(n, sz) calloc((n), (sz))
-
 // --- Ссылки (threadsafe, но низкоуровневые) ---
 void uevent_ref(uev_t *uev);  // atomic
 int uevent_unref(uev_t *uev); // atomic

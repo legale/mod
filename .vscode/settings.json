@@ -44,6 +44,11 @@
 		"rtnetlink.h": "c",
 		"nlmon.h": "c",
 		"stddef.h": "c",
-		"netlink.h": "c"
+		"netlink.h": "c",
+		"array": "c",
+		"functional": "c",
+		"tuple": "c",
+		"type_traits": "c",
+		"utility": "c"
 	}
 }

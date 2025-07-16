@@ -1,4 +1,14 @@
 // perftest.c
+
+#ifndef _POSIX_SOURCE
+#define _POSIX_SOURCE
+#endif //_POSIX_SOURCE
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif //_GNU_SOURCE
+
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,18 +27,18 @@
 // --- Утилита для замера времени ---
 long long get_time_ms() {
   struct timespec ts;
-  clock_gettime(CLOCK_MONOTONIC, &ts);
+  clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
 // --- Код для тестирования uevent ---
 
-static int uevent_triggered_count;
+static _Atomic int uevent_triggered_count = 0;
 void uevent_perf_cb(uevent_t *ev, int fd, short event, void *arg) {
   (void)ev;
   (void)fd;
   (void)event;
-  int *counter = (int *)arg;
+  _Atomic int *counter = (_Atomic int *)arg;
   atomic_fetch_add_explicit(counter, 1, memory_order_acq_rel);
 }
 
@@ -40,7 +50,7 @@ void run_uevent_test(int num_events) {
 #endif
 
   printf("--- test uevent (events=%d) ---\n", num_events);
-  _Atomic int uevent_triggered_count = 0;
+  uevent_triggered_count = 0;
 
   uevent_base_t *base = uevent_base_new_with_workers(num_events, 0);
   assert(base);
@@ -49,10 +59,10 @@ void run_uevent_test(int num_events) {
   long long start_time = get_time_ms();
 
   for (int i = 0; i < num_events; i++) {
-    uevent_t *ev = uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, uevent_perf_cb, &uevent_triggered_count, __func__);
-    assert(ev);
+    uev_t *uev = uevent_create_or_assign_event(NULL, base, -1, UEV_TIMEOUT, uevent_perf_cb, &uevent_triggered_count, __func__);
+    assert(uev);
     // Добавляем с минимальным таймаутом, чтобы они сработали как можно скорее
-    uevent_add(ev, 0);
+    uevent_add(uev, 0);
   }
 
   uevent_base_dispatch(base);
@@ -118,7 +128,7 @@ static int libuv_triggered_count;
 void libuv_perf_cb(uv_timer_t *handle) {
   int *counter = (int *)handle->data;
   (*counter)++;
-  uv_close((uv_handle_t *)handle, free);
+  uv_close((uv_handle_t *)handle, (uv_close_cb)free);
 }
 
 void run_libuv_test(int num_events) {

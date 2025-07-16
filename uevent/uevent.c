@@ -45,6 +45,11 @@
 #ifndef IS_DYNAMIC_LIB
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
+
+__attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
+void setup_syslog2(const char *ident, int level, bool use_syslog) {}
+
+
 __attribute__((weak))
 void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
     char buf[4096];
@@ -66,7 +71,7 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
 }
 
 __attribute__((weak))
-uint64_t get_current_time_ms() {
+uint64_t tu_clock_gettime_monotonic_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -74,6 +79,17 @@ uint64_t get_current_time_ms() {
     return 0U;
   }
   return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+}
+
+__attribute__((weak))
+int syslog2_get_pri(){
+  return 0;
+}
+
+__attribute__((weak))
+int msleep(uint64_t ms) {
+  struct timespec ts = {.tv_sec = ms / MS_PER_SEC, .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
+  return nanosleep(&ts, NULL);
 }
 #endif //IS_DYNAMIC_LIB
 // logger END
@@ -215,7 +231,7 @@ static void uevent_destroy_uev_internal_unsafe(uev_t *uev) {
 static void log_timer_delay_if_needed(uev_t *uev, short triggered_events, uint64_t cron_time) {
   if ((triggered_events & UEV_TIMEOUT) == 0) return;
 
-  uint64_t now_ms = get_current_time_ms();
+  uint64_t now_ms = tu_clock_gettime_monotonic_ms();
   int64_t diff_ms = (int64_t)now_ms - (int64_t)cron_time;
 
   if (syslog2_get_pri() & LOG_MASK(LOG_DEBUG)) {
@@ -281,12 +297,12 @@ static int uev_slots_init(uevent_base_t *base, int max_events) {
 
   pthread_mutex_init(&base->slots_mut, NULL);
 
-  base->uev_arr = UEV_CALLOC(max_events, sizeof(uev_t));
+  base->uev_arr = calloc(max_events, sizeof(uev_t));
   if (base->uev_arr == NULL) {
     return -1;
   }
 
-  base->free_uev_arr = UEV_MALLOC(max_events * sizeof(unsigned int));
+  base->free_uev_arr = malloc(max_events * sizeof(unsigned int));
   if (base->free_uev_arr == NULL) {
     free(base->uev_arr);
     return -1;
@@ -380,7 +396,7 @@ static int prepare_base_components(uevent_base_t *base,
     return -1;
   }
 
-  base->events = UEV_CALLOC(max_events, sizeof(struct epoll_event));
+  base->events = calloc(max_events, sizeof(struct epoll_event));
   if (!base->events) return -1;
 
   base->timer_heap = mh_create(max_events);
@@ -419,7 +435,7 @@ uevent_base_t *uevent_base_new_with_workers(int max_events, int num_workers) {
     return NULL;
   }
 
-  uevent_base_t *base = UEV_CALLOC(1, sizeof(uevent_base_t));
+  uevent_base_t *base = calloc(1, sizeof(uevent_base_t));
   if (!base) return NULL;
 
   init_base_defaults(base, max_events);
@@ -503,7 +519,7 @@ void uevent_active(uev_t *uev) {
 static uevent_t *uevent_alloc_ev(uevent_t *ev) {
   if (ev != NULL) return ev;
 
-  uevent_t *event = UEV_CALLOC(1, sizeof(uevent_t));
+  uevent_t *event = calloc(1, sizeof(uevent_t));
   return event;
 }
 
@@ -624,11 +640,11 @@ static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t 
     return;
   }
 
-  uint64_t start = get_current_time_ms();
+  uint64_t start = tu_clock_gettime_monotonic_ms();
   if (cb) {
     cb(ev, fd, events, arg);
   }
-  uint64_t finish = get_current_time_ms();
+  uint64_t finish = tu_clock_gettime_monotonic_ms();
 
   // Метрики:
   int64_t diff_cron_to_exec = (int64_t)start - (int64_t)cron_time;
@@ -739,7 +755,7 @@ int uevent_add(uev_t *uev, int timeout_ms) {
   if (timeout_ms == -2) {
     timeout_ms = atomic_load_explicit(&uev->ev->timeout_ms, memory_order_acquire);
   }
-  int ret = uevent_add_internal_unsafe(ev, get_current_time_ms(), timeout_ms, false);
+  int ret = uevent_add_internal_unsafe(ev, tu_clock_gettime_monotonic_ms(), timeout_ms, false);
   uevent_unlock(ev);
   uevent_put(uev);
   return ret;
@@ -858,7 +874,7 @@ static void uevent_handle_timers(uevent_base_t *base) {
   (void)pthread_mutex_lock(&base->base_mut);
   TMARK(10, "mutex_lock base OK");
 
-  uint64_t now = get_current_time_ms();
+  uint64_t now = tu_clock_gettime_monotonic_ms();
   uint16_t max = 500;
 
   minheap_node_t *prev = NULL;
@@ -921,7 +937,7 @@ static int calculate_epoll_timeout(uevent_base_t *base) {
 
   minheap_node_t *min_node = mh_get_min(base->timer_heap);
   if (min_node != NULL) {
-    uint64_t current_time = get_current_time_ms();
+    uint64_t current_time = tu_clock_gettime_monotonic_ms();
     uevent_t *ev = container_of(min_node, uevent_t, timer_node);
     syslog2(LOG_DEBUG, "name='%s' min_node->key=%" PRIu64 " cur_time=%" PRIu64, ev->name, min_node->key, current_time);
     if (min_node->key <= current_time) {
@@ -993,10 +1009,10 @@ static void dump_timer_heap(uevent_base_t *base) {
 }
 
 static int epoll_wait_and_dispatch(uevent_base_t *base, int epoll_timeout) {
-  uint64_t mark = get_current_time_ms();
+  uint64_t mark = tu_clock_gettime_monotonic_ms();
   int nfds = epoll_wait(base->epoll_fd, base->events, base->max_events,
                         epoll_timeout);
-  uint64_t now = get_current_time_ms();
+  uint64_t now = tu_clock_gettime_monotonic_ms();
   int64_t slept_ms = (int64_t)now - (int64_t)mark;
   syslog2(LOG_DEBUG, "[EPOLL_DBG] epoll_timeout=%d slept_ms=%" PRId64 "",
              epoll_timeout, slept_ms);

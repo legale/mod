@@ -28,7 +28,7 @@ typedef struct {
   int value;
 } heap_value_t;
 
-static uint64_t get_current_time_ms() {
+static uint64_t tu_get_current_time_ms () {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -342,7 +342,7 @@ void test_mh_map_functions() {
  */
 void test_extract_min_order() {
   PRINT_TEST_START("Extract items in ascending order");
-  uint64_t cur = get_current_time_ms();
+  uint64_t cur = tu_get_current_time_ms ();
   heap_value_t values[] = {
       {.heap_node = {.key = cur + 3500}, .value = 1},
       {.heap_node = {.key = cur + 7500}, .value = 2},

@@ -336,8 +336,7 @@ int tu_clock_gettime_local_mono(struct timespec *ts) {
 
 /* ====== утилиты сна, timespec арифметика ====== */
 int msleep(uint64_t ms) {
-  struct timespec ts = {.tv_sec = ms / MS_PER_SEC,
-                        .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
+  struct timespec ts = {.tv_sec = ms / MS_PER_SEC, .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
   return nanosleep(&ts, NULL);
 }
 
