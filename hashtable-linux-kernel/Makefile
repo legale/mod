@@ -19,6 +19,7 @@ TARGET_LIB = lib$(NAME).a
 TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
+TEST_BINS ?= $(TARGET_TEST)
 
 .PHONY: run all clean perf leak coverage $(MODULES)
 
