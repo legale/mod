@@ -146,7 +146,8 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
                      tbuf, tid, file, line, func, msg, nl ? "\n" : "");
   if (len > 0) {
     lock_stdout();
-    write(STDOUT_FILENO, outbuf, len);
+    ssize_t written = write(STDOUT_FILENO, outbuf, len);
+    (void)written;
     unlock_stdout();
   }
 }
@@ -170,7 +171,8 @@ void syslog2_printf_(int pri, const char *func, const char *file, int line, cons
   int len = strlen(msg);
   if (len > 0) {
     lock_stdout();
-    write(STDOUT_FILENO, msg, len);
+    ssize_t w = write(STDOUT_FILENO, msg, len);
+    (void)w;
     unlock_stdout();
   }
 }

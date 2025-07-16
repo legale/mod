@@ -43,7 +43,8 @@ __attribute__((weak)) void syslog2_(int pri, const char *func, const char *file,
   // добавляем \n если нужно
   if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-  (void)write(STDOUT_FILENO, buf, len);
+  ssize_t written = write(STDOUT_FILENO, buf, len);
+  (void)written;
 }
 #endif // IS_DYNAMIC_LIB
 // logger END

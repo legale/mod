@@ -9,7 +9,7 @@ MODULES = ../timeutil ../syslog2 ../minheap
 
 EXTRA_LIBS = pthread
 
-SRC = $(filter-out main.c test.c robust_test.c, $(wildcard *.c))
+SRC = $(filter-out main.c test.c robust_test.c perftest.c, $(wildcard *.c))
 HDR = $(wildcard *.h)
 
 OBJ_STATIC = $(SRC:.c=.o)
@@ -21,6 +21,8 @@ TARGET_TEST = test
 TARGET_MAIN = main
 
 .PHONY: run all clean perf leak coverage $(MODULES)
+
+check: test
 
 all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
 
@@ -39,8 +41,9 @@ $(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 # test binary (static)
-$(TARGET_TEST): test.o $(TARGET_LIB)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+$(TARGET_TEST): test.o $(TARGET_LIB) $(MODULES)
+	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
+	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 

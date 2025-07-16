@@ -1,4 +1,4 @@
-NAME = hashtable-linux-kernel
+NAME = udeque
 CC ?= gcc
 CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
 CFLAGS = $(CFLAGS_BASE) -fPIC
@@ -62,7 +62,7 @@ run:
 	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	rm -f *.gcov *.gcno $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
 	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 
 # ------------------ профилирование и утечки ------------------
@@ -76,8 +76,8 @@ leak: $(TARGET_TEST)
 	@echo "Running valgrind memcheck for memory leaks..."
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET_TEST)
 
-
 # ------------------ покрытие ------------------
+
 COV_CFLAGS = --coverage -O0 -g
 COV_LDFLAGS = --coverage
 COV_SRCS = $(SRC)
@@ -87,9 +87,9 @@ coverage: clean
 	@for t in $(TEST_BINS); do ./$$t || exit 1; done
 	@echo "=== Coverage report (gcov): ==="
 	@for f in $(COV_SRCS); do \
-	gcov "$$f" | grep -A10 "File '$$f'"; \
+		gcov "$$f" | grep -A10 "File '$$f'"; \
 	done
 	@echo "=== Coverage report (summary): ==="
 	@for f in $(COV_SRCS); do \
-	gcov -b "$$f" | grep -E 'Lines executed|Branches executed'; \
+		gcov -b "$$f" | grep -E 'Lines executed|Branches executed'; \
 	done
