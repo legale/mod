@@ -42,6 +42,7 @@ $(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 $(TARGET_TEST): test.o $(TARGET_LIB)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+	./test
 
 
 space := $(empty) $(empty)

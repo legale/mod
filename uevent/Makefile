@@ -45,7 +45,7 @@ $(TARGET_TEST): test.o $(TARGET_LIB) $(MODULES)
 	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
 	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
-
+	./test
 
 space := $(empty) $(empty)
 
