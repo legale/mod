@@ -61,8 +61,8 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   (void)written;
 }
 
-__attribute__((weak)) uint64_t tu_get_current_time_ms ();
-uint64_t tu_get_current_time_ms () {
+__attribute__((weak)) uint64_t tu_get_current_time_ms();
+uint64_t tu_get_current_time_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -86,27 +86,6 @@ int minheap_mod_init(const minheap_mod_init_args_t *args) {
     realtime_func = args->get_time;
   }
   return 0;
-}
-
-// Устанавливает индекс узла (idx + 1 для отличия от 0)
-void mh_map_set(minheap_t *minheap, minheap_node_t *node, int idx) {
-  if (!node) return;
-  (void)minheap; // не используется
-  node->idx = (uint16_t)idx + 1;
-}
-
-// Получает индекс узла или -1, если узел не в куче
-int mh_map_get(minheap_t *minheap, minheap_node_t *node) {
-  if (!node) return -1;
-  (void)minheap; // не используется
-  return node->idx - 1;
-}
-
-// Удаляет узел из маппинга, сбрасывая его индекс
-void mh_map_del(minheap_t *minheap, minheap_node_t *node) {
-  if (!node) return;
-  (void)minheap; // не используется
-  node->idx = 0;
 }
 
 // Создаёт кучу с заданной вместимостью
@@ -174,32 +153,44 @@ void mh_sift_down(minheap_t *minheap, int idx) {
   minheap_node_t *node = heap[idx]; // Сохраняем узел для просеивания
   int hole = idx;                   // Позиция дырки — переданный индекс
   uint64_t val = node->key;         // Значение узла
-  int mc;                           // Минимальный ребёнок
   int sz = minheap->size;
 
   // Просеивание вниз
-  while (mh_left_child(hole) < sz) {
-    mc = mh_left_child(hole);
+  while (1) {
+    int mc = mh_left_child(hole); // Индекс первого ребёнка
+    if (mc >= sz) break;
 
-    if (mc + 1 < sz && heap[mc + 1]->key < heap[mc]->key) {
-      mc += 1;
+    int min_idx = mc;                 // Индекс минимального ребёнка
+    uint64_t min_key = heap[mc]->key; // Ключ минимального ребёнка
+
+    // Проверяем детей
+    if (mc + 1 < sz) {
+      uint64_t key = heap[mc + 1]->key; // Кэшируем ключ второго ребёнка
+      if (key < min_key) {
+        min_key = key;
+        min_idx = mc + 1;
+      }
+    }
+    if (mc + 2 < sz) {
+      uint64_t key = heap[mc + 2]->key; // Кэшируем ключ третьего ребёнка
+      if (key < min_key) {
+        min_key = key;
+        min_idx = mc + 2;
+      }
+    }
+    if (mc + 3 < sz) {
+      uint64_t key = heap[mc + 3]->key; // Кэшируем ключ четвёртого ребёнка
+      if (key < min_key) {
+        min_key = key;
+        min_idx = mc + 3;
+      }
     }
 
-    if (mc + 2 < sz && heap[mc + 2]->key < heap[mc]->key) {
-      mc += 2;
-    }
+    if (min_key >= val) break; // Если минимальный ребёнок не меньше, выходим
 
-    if (mc + 3 < sz && heap[mc + 3]->key < heap[mc]->key) {
-      mc += 3;
-    }
-
-    if (heap[mc]->key < val) {
-      heap[hole] = heap[mc];
-      mh_map_set(minheap, heap[hole], hole);
-      hole = mc;
-    } else {
-      break;
-    }
+    heap[hole] = heap[min_idx];
+    mh_map_set(minheap, heap[hole], hole);
+    hole = min_idx;
   }
 
   // Вставляем сохранённый узел в финальную позицию
@@ -209,8 +200,8 @@ void mh_sift_down(minheap_t *minheap, int idx) {
 
 // Вставляет новый узел или обновляет существующий
 int mh_insert(minheap_t *minheap, minheap_node_t *node) {
-  if (!minheap || !node) {
-    return -1; // Ошибка: NULL-указатель
+  if (!minheap || !node || minheap->size >= minheap->capacity) {
+    return -1; // Ошибка: NULL-указатель или куча заполнена
   }
   minheap_node_t **heap = minheap->arr;
 
@@ -218,24 +209,16 @@ int mh_insert(minheap_t *minheap, minheap_node_t *node) {
   int idx = mh_map_get(minheap, node);
   if (idx >= 0) {
     // Узел уже в куче, его key мог измениться
-    mh_sift_up(minheap, idx);   // Просеиваем вверх, если key уменьшился
-    mh_sift_down(minheap, idx); // Просеиваем вниз, если key увеличился
+    mh_sift_up(minheap, idx);   // Просеиваем вверх, если ключ уменьшился
+    mh_sift_down(minheap, idx); // Просеиваем вниз, если ключ увеличился
     return 0;                   // Успех: узел обновлён
   }
 
-  // Проверяем, есть ли место в куче
-  if (minheap->size >= minheap->capacity) {
-    return -1; // Ошибка: куча заполнена
-  }
-
   // Вставляем новый узел в конец кучи
-  heap[minheap->size] = node;
-  // Обновляем индекс узла
-  mh_map_set(minheap, node, minheap->size);
-  // Увеличиваем размер кучи
-  minheap->size++;
-  // Просеиваем новый узел вверх
-  mh_sift_up(minheap, minheap->size - 1);
+  idx = minheap->size++;
+  heap[idx] = node;
+  mh_map_set(minheap, node, idx);
+  mh_sift_up(minheap, idx);
   return 0; // Успех: узел вставлен
 }
 

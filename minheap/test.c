@@ -28,7 +28,7 @@ typedef struct {
   int value;
 } heap_value_t;
 
-static uint64_t tu_get_current_time_ms () {
+static uint64_t tu_get_current_time_ms() {
   struct timespec ts;
   int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   if (ret != 0) {
@@ -140,7 +140,6 @@ void test_free_null() {
   reset_alloc_counters();
   fail_malloc_at = 0;
 }
-
 
 void test_extract_min_null() {
   reset_alloc_counters();
@@ -342,7 +341,7 @@ void test_mh_map_functions() {
  */
 void test_extract_min_order() {
   PRINT_TEST_START("Extract items in ascending order");
-  uint64_t cur = tu_get_current_time_ms ();
+  uint64_t cur = tu_get_current_time_ms();
   heap_value_t values[] = {
       {.heap_node = {.key = cur + 3500}, .value = 1},
       {.heap_node = {.key = cur + 7500}, .value = 2},
@@ -422,6 +421,101 @@ void test_boundary_and_error_cases() {
   assert(mh_get_min(heap) == NULL && "Get-min from empty heap should be NULL");
 
   mh_free(heap);
+  PRINT_TEST_PASSED();
+}
+
+// --- Реализация упорядоченного связанного списка для сравнения ---
+typedef struct sorted_list_node {
+  uint64_t key;
+  struct sorted_list_node *next;
+} sorted_list_node_t;
+
+// Вставка в упорядоченный список (медленная операция O(N))
+static void sorted_list_insert(sorted_list_node_t **head, uint64_t key) {
+  sorted_list_node_t *new_node = malloc(sizeof(sorted_list_node_t));
+  new_node->key = key;
+
+  if (*head == NULL || (*head)->key >= key) {
+    new_node->next = *head;
+    *head = new_node;
+    return;
+  }
+
+  sorted_list_node_t *current = *head;
+  while (current->next != NULL && current->next->key < key) {
+    current = current->next;
+  }
+  new_node->next = current->next;
+  current->next = new_node;
+}
+
+// Извлечение минимума из упорядоченного списка (быстрая операция O(1))
+static void sorted_list_extract_min(sorted_list_node_t **head) {
+  if (*head == NULL)
+    return;
+  sorted_list_node_t *temp = *head;
+  *head = (*head)->next;
+  free(temp);
+}
+
+void test_heap_vs_sorted_list_consistency() {
+  PRINT_TEST_START("Heap invariant check with sorted list reference");
+  const int NUM_NODES = 200;
+  const int OPERATIONS = 500;
+  minheap_t *heap = mh_create(NUM_NODES);
+  sorted_list_node_t *list_head = NULL;
+  heap_value_t *nodes = calloc(NUM_NODES, sizeof(heap_value_t));
+  assert(nodes);
+
+  srand(123);
+
+  for (int i = 0; i < OPERATIONS; ++i) {
+    int op = rand() % 3;
+    int idx = rand() % NUM_NODES;
+    minheap_node_t *node = &nodes[idx].heap_node;
+
+    if (op == 0) { // insert
+      if (mh_map_get(heap, node) < 0) {
+        node->key = rand();
+        mh_insert(heap, node);
+        sorted_list_insert(&list_head, node->key);
+      }
+    } else if (op == 1) { // delete
+      if (mh_map_get(heap, node) >= 0) {
+        mh_delete_node(heap, node);
+        // delete from sorted list
+        sorted_list_node_t **curr = &list_head;
+        while (*curr) {
+          if ((*curr)->key == node->key) {
+            sorted_list_node_t *tmp = *curr;
+            *curr = (*curr)->next;
+            free(tmp);
+            break;
+          }
+          curr = &(*curr)->next;
+        }
+      }
+    } else if (op == 2) { // extract_min
+      if (!mh_is_empty(heap)) {
+        minheap_node_t *min = mh_extract_min(heap);
+        sorted_list_extract_min(&list_head);
+        (void)min;
+      }
+    }
+
+    // validate min values match
+    minheap_node_t *heap_min = mh_get_min(heap);
+    uint64_t heap_min_key = heap_min ? heap_min->key : UINT64_MAX;
+    uint64_t list_min_key = list_head ? list_head->key : UINT64_MAX;
+    assert(heap_min_key == list_min_key && "heap min does not match sorted list min");
+  }
+
+  // cleanup
+  mh_free(heap);
+  free(nodes);
+  while (list_head)
+    sorted_list_extract_min(&list_head);
+
   PRINT_TEST_PASSED();
 }
 
@@ -530,40 +624,6 @@ uint64_t get_time_usec() {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   return (uint64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
-}
-
-// --- Реализация упорядоченного связанного списка для сравнения ---
-typedef struct sorted_list_node {
-  uint64_t key;
-  struct sorted_list_node *next;
-} sorted_list_node_t;
-
-// Вставка в упорядоченный список (медленная операция O(N))
-void sorted_list_insert(sorted_list_node_t **head, uint64_t key) {
-  sorted_list_node_t *new_node = malloc(sizeof(sorted_list_node_t));
-  new_node->key = key;
-
-  if (*head == NULL || (*head)->key >= key) {
-    new_node->next = *head;
-    *head = new_node;
-    return;
-  }
-
-  sorted_list_node_t *current = *head;
-  while (current->next != NULL && current->next->key < key) {
-    current = current->next;
-  }
-  new_node->next = current->next;
-  current->next = new_node;
-}
-
-// Извлечение минимума из упорядоченного списка (быстрая операция O(1))
-void sorted_list_extract_min(sorted_list_node_t **head) {
-  if (*head == NULL)
-    return;
-  sorted_list_node_t *temp = *head;
-  *head = (*head)->next;
-  free(temp);
 }
 
 // --- Вспомогательная функция для расчета разницы в % ---
@@ -762,6 +822,7 @@ int main(int argc, char **argv) {
   test_boundary_and_error_cases();
   test_update_node_key();
   test_stress_random_operations();
+  test_heap_vs_sorted_list_consistency();
   test_performance_vs_list();
 
   printf(KGRN "====== All minheap tests passed! ======\n" KNRM);
