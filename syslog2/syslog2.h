@@ -31,9 +31,10 @@ extern pid_t thread_ids[MAX_THREADS];
 extern pthread_t pthread_ids[MAX_THREADS];
 
 // макрос для записи имени функции
-#define SET_CURRENT_FUNCTION()           \
+#define SET_CURRENT_FUNCTION             \
   do {                                   \
-    pid_t tid = syscall(SYS_gettid);     \
+    static __thread pid_t tid = 0;       \
+    if (!tid) tid = syscall(SYS_gettid); \
     size_t index = tid % MAX_THREADS;    \
     last_function[index] = __func__;     \
     thread_ids[index] = tid;             \
@@ -70,7 +71,6 @@ EXPORT_API int syslog2_get_pri();
 #define syslog2_nnl(pri, fmt, ...) \
   syslog2_(pri, __func__, __FILE__, __LINE__, fmt, false, ##__VA_ARGS__)
 
-  
 #ifdef __cplusplus
 }
 #endif

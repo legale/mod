@@ -27,11 +27,9 @@ static _Atomic int stdout_lock = 0;
 
 static const char *priority_texts[] = {"M", "A", "C", "E", "W", "N", "I", "D"};
 
-
 #ifdef IS_DYNAMIC_LIB
 #include "../timeutil/timeutil.h" // жёсткая зависимость
 #endif
-
 
 // заглушки для функций связанного модуля времени, чтобы тестировать без него
 #ifndef IS_DYNAMIC_LIB
@@ -46,8 +44,8 @@ int tu_clock_gettime_local(struct timespec *ts) {
 
 #if defined(_GNU_SOURCE)
   ts->tv_sec += local_tm.tm_gmtoff;
-  //for debug only!!!!
-  // ts->tv_sec = 0;
+  // for debug only!!!!
+  //  ts->tv_sec = 0;
 #else
   time_t utc = ts->tv_sec;
   struct tm gm_tm;
@@ -58,7 +56,7 @@ int tu_clock_gettime_local(struct timespec *ts) {
 #endif
   return 0;
 }
-#endif //IS_DYNAMIC_LIB
+#endif // IS_DYNAMIC_LIB
 
 static inline const char *strprio(int pri) {
   return (pri >= LOG_EMERG && pri <= LOG_DEBUG) ? priority_texts[pri] : "?";
@@ -101,14 +99,18 @@ void setup_syslog2(const char *ident, int level, bool use_syslog) {
 }
 
 void syslog2_print_last_functions(void) {
-  syslog2(LOG_ALERT, "last called functions by threads:");
+  syslog2_printf(LOG_ALERT, "last called functions by threads:\n");
   for (size_t index = 0; index < MAX_THREADS; index++) {
     if (last_function[index] != NULL) {
-      syslog2(LOG_ALERT, "idx=%zu tid=%d pthread_id=%lu last_func=%s",
-              index,
-              thread_ids[index],
-              (unsigned long)pthread_ids[index],
-              last_function[index]);
+      char name[16] = "unknown"; // pthread names max 16 байт включая \0
+      pthread_getname_np(pthread_ids[index], name, sizeof(name));
+      syslog2_printf(LOG_ALERT,
+                     "idx=%zu tid=%d pthread_id=%lu name=%s last_func=%s\n",
+                     index,
+                     thread_ids[index],
+                     (unsigned long)pthread_ids[index],
+                     name,
+                     last_function[index]);
     }
   }
 }
@@ -116,8 +118,9 @@ void syslog2_print_last_functions(void) {
 void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
-  if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level)))
-    return;
+  if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level))) return;
+
+  SET_CURRENT_FUNCTION;
 
   static __thread pid_t tid = 0;
   if (!tid) tid = syscall(SYS_gettid);
@@ -154,7 +157,6 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
 
 void syslog2_printf_(int pri, const char *func, const char *file, int line, const char *fmt, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
-
   if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level)))
     return;
 
@@ -177,6 +179,6 @@ void syslog2_printf_(int pri, const char *func, const char *file, int line, cons
   }
 }
 
-int syslog2_get_pri(){
+int syslog2_get_pri() {
   return syslog2_level;
 }
