@@ -24,6 +24,7 @@
 #define PRINT_TEST_START(name) printf(KCYN "%s:%d --- Starting Test: %s ---" KNRM "\n", __FILE__, __LINE__, name)
 
 #define PRINT_TEST_PASSED() printf(KGRN "--- Test Passed ---" KNRM "\n\n")
+#define PRINT_TEST_INFO_GREEN(str) printf(KGRN "%s" KNRM "\n", str)
 
 #define PRINT_TEST_INFO(fmt, ...) printf(KYEL "%s:%d [INFO] " KNRM fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 

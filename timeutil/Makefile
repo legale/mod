@@ -62,7 +62,7 @@ run:
 	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
 
 clean:
-	rm -f *.gcov *.gcno $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	rm -f callgrind.out *.gcov *.gcno $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
 	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 
 # ------------------ профилирование и утечки ------------------

@@ -1,7 +1,83 @@
 #include "pcap_dhcp.h"
-#include "../syslog2/syslog2.h"
 
-#include "../leak_detector_c/leak_detector.h"
+#include <arpa/inet.h>
+#include <net/ethernet.h>
+#include <netinet/if_ether.h>
+#include <netinet/in.h>
+#include <pcap.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// logger and timeutil fallback
+#ifdef IS_DYNAMIC_LIB
+#include "../syslog2/syslog2.h"   // жёсткая зависимость
+#include "../timeutil/timeutil.h" // жёсткая зависимость
+#endif
+
+#include <time.h>
+#include <unistd.h>
+#ifndef FUNC_START_DEBUG
+#define FUNC_START_DEBUG syslog2(LOG_DEBUG, "START")
+#endif
+
+#ifndef IS_DYNAMIC_LIB
+#include <stdarg.h>
+#include <syslog.h>
+
+#define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
+
+// unit conversion macros
+#define NS_PER_USEC 1000U
+#define USEC_PER_MS 1000U
+#define MS_PER_SEC 1000U
+#define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
+#define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
+#define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+
+__attribute__((weak)) void *malloc(size_t size);
+__attribute__((weak)) void *calloc(size_t nmemb, size_t size);
+__attribute__((weak)) void *realloc(void *ptr, size_t size);
+__attribute__((weak)) void free(void *ptr);
+
+__attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
+void setup_syslog2(const char *ident, int level, bool use_syslog) {}
+
+__attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  char buf[4096];
+  size_t sz = sizeof(buf);
+  va_list ap;
+
+  va_start(ap, nl);
+  int len = snprintf(buf, sz, "[%d] %s:%d %s: ", pri, file, line, func);
+  len += vsnprintf(buf + len, sz - len, fmt, ap);
+  va_end(ap);
+
+  // ограничиваем длину если переполнено
+  if (len >= (int)sz) len = sz - 1;
+
+  // добавляем \n если нужно
+  if (nl && len < (int)sz - 1) buf[len++] = '\n';
+
+  ssize_t written = write(STDOUT_FILENO, buf, len);
+  (void)written;
+}
+
+__attribute__((weak)) uint64_t tu_get_current_time_ms();
+uint64_t tu_get_current_time_ms() {
+  struct timespec ts;
+  int ret = clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+  if (ret != 0) {
+    syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
+    return 0U;
+  }
+  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+}
+#endif // IS_DYNAMIC_LIB
+// logger END
 
 /*
  * Convert a token value to a string; use "fmt" if not found.
@@ -53,7 +129,7 @@ void dhcp_packet_handler(uint8_t *args, const struct pcap_pkthdr *h, const uint8
   int cnt = 0;
   while (ntohs(*(uint16_t *)ether_type) == ETHERTYPE_VLAN) {
     if (cnt++ > 2) {
-      //syslog2(LOG_DEBUG, "vlan headers > 2");
+      // syslog2(LOG_DEBUG, "vlan headers > 2");
     }
     // struct vlan_header *vlan_h = (struct vlan_header *)eth_h;
     // //syslog2(LOG_DEBUG, "VLAN ID 0x%04X", ntohs(vlan_h->vlanid));
@@ -113,7 +189,7 @@ void dhcp_packet_handler(uint8_t *args, const struct pcap_pkthdr *h, const uint8
     // //syslog2(LOG_DEBUG, "payload size(%zu) < bootp structure size(%u). Skipping...", payload_len, (uint32_t)sizeof(struct bootp));
     return;
   }
-  //syslog2(LOG_DEBUG, "Memory address where payload begins: %p", payload);
+  // syslog2(LOG_DEBUG, "Memory address where payload begins: %p", payload);
 
   pcap_dhcp_user_s *user = (pcap_dhcp_user_s *)args;
   (*user->callback)(p, *h, payload, user->callback_arg);
@@ -123,7 +199,7 @@ void dhcp_packet_handler(uint8_t *args, const struct pcap_pkthdr *h, const uint8
 pcap_t *dhcp_pcap_open_live(const char *device) {
   char error_buffer[PCAP_ERRBUF_SIZE];
   pcap_t *handle;
-  const int buf_size = 2048;                             /* interested packet size range 292 - 512 */
+  const int buf_size = 2048;                            /* interested packet size range 292 - 512 */
   int timeout_limit = 1000;                             /* In milliseconds */
   struct bpf_program fp;                                /* The compiled filter */
   char filter_exp[] = "len >= 292 && udp && (port 67)"; /* The filter expression to catch bootp packets */
@@ -164,15 +240,13 @@ pcap_t *dhcp_pcap_open_live(const char *device) {
     return NULL;
   }
 
-  //this mode is not working with small buffer size error: can't mmap rx ring: Invalid argument
+  // this mode is not working with small buffer size error: can't mmap rx ring: Invalid argument
   /* Set immediate mode */
   if (pcap_set_immediate_mode(handle, 1) != 0) {
     syslog2(LOG_ALERT, "Unable to set immediate mode for %s", device);
     pcap_close(handle);
     return NULL;
   }
-
-
 
   // Set non-blocking mode
   if (pcap_setnonblock(handle, 1, error_buffer) == -1) {
@@ -201,8 +275,6 @@ pcap_t *dhcp_pcap_open_live(const char *device) {
     return NULL;
   }
 
-
-
   return handle;
 }
 
@@ -210,7 +282,7 @@ pcap_t *dhcp_pcap_open_live(const char *device) {
  * Vendor magic cookie (v_magic) for RFC1048
  */
 #define VM_RFC1048 \
-  { 99, 130, 83, 99 }
+  {99, 130, 83, 99}
 
 static const uint8_t vm_rfc1048[4] = VM_RFC1048;
 

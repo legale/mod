@@ -64,9 +64,13 @@ EXPORT_API int syslog2_get_pri();
 #define syslog2(pri, fmt, ...) \
   syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
+#define syslog2_printf(pri, fmt, ...) \
+  syslog2_printf_(pri, __func__, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+
 #define syslog2_nnl(pri, fmt, ...) \
   syslog2_(pri, __func__, __FILE__, __LINE__, fmt, false, ##__VA_ARGS__)
 
+  
 #ifdef __cplusplus
 }
 #endif

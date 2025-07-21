@@ -70,9 +70,9 @@ static inline int64_t rd_be64s(const uint8_t *p) {
 static inline void timespec_add(struct timespec *a, const struct timespec *b) {
   a->tv_sec += b->tv_sec;
   a->tv_nsec += b->tv_nsec;
-  if (a->tv_nsec >= NS_PER_SEC) {
+  if (a->tv_nsec >= (int)NS_PER_SEC) {
     ++a->tv_sec;
-    a->tv_nsec -= NS_PER_SEC;
+    a->tv_nsec -= (int)NS_PER_SEC;
   }
 }
 
@@ -81,7 +81,7 @@ static inline void timespec_sub(const struct timespec *a, const struct timespec 
   res->tv_nsec = a->tv_nsec - b->tv_nsec;
   if (res->tv_nsec < 0) {
     --res->tv_sec;
-    res->tv_nsec += NS_PER_SEC;
+    res->tv_nsec += (int)NS_PER_SEC;
   }
 }
 
@@ -320,8 +320,8 @@ int tu_clock_gettime_local_mono(struct timespec *ts) {
   ts->tv_nsec += g_ts_real_mono_off.tv_nsec;
 
   // нормализация nsec, чтобы значение там оставалось меньше секунды
-  if (ts->tv_nsec >= NS_PER_SEC) {
-    ts->tv_nsec -= NS_PER_SEC;
+  if (ts->tv_nsec >= (int)NS_PER_SEC) {
+    ts->tv_nsec -= (int)NS_PER_SEC;
     ts->tv_sec += 1;
   }
 

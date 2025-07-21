@@ -55,6 +55,10 @@
 		"hashtable.h": "c",
 		"dlfcn.h": "c",
 		"uevent_worker.h": "c",
-		"list.h": "c"
+		"list.h": "c",
+		"pcap_dhcp.h": "c",
+		"inet.h": "c",
+		"ethernet.h": "c",
+		"stdint.h": "c"
 	}
 }
