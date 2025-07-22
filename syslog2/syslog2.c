@@ -118,17 +118,17 @@ void syslog2_print_last_functions(void) {
 void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
-  if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level))) return;
-
-  SET_CURRENT_FUNCTION;
-
   static __thread pid_t tid = 0;
   if (!tid) tid = syscall(SYS_gettid);
+  static __thread pthread_t pthid = 0;
+  if(!pthid) pthid = pthread_self();
 
   size_t index = tid % MAX_THREADS;
   last_function[index] = func;
   thread_ids[index] = tid;
-  pthread_ids[index] = pthread_self();
+  pthread_ids[index] = pthid;
+
+  if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level))) return;
 
   char msg[MSG_BUF_SZ];
   va_list ap;
