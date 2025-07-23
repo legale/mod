@@ -98,7 +98,6 @@ void run_test_in_fork_that_should_crash(void (*test_func)(void)) {
   }
 }
 
-
 // =============================================================================
 // ТЕСТЫ
 // =============================================================================
@@ -1479,6 +1478,44 @@ void test_persist_and_self_adding_timer_with_workers() {
   PRINT_TEST_PASSED();
 }
 
+void test_stdin_read_write_event_no_del() {
+  PRINT_TEST_START("read/write on STDIN_FILENO without explicit del");
+
+  uevent_base_t *base = uevent_base_new_with_workers(16, 10);
+  assert(base != NULL);
+
+  void stdin_callback(uevent_t * ev, int fd, short event, void *arg) {
+    FUNC_START_DEBUG;
+
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF) {
+      char c = ch;
+      write(STDOUT_FILENO, &c, 1);
+    }
+
+    write(STDOUT_FILENO, "\n", 1);
+  }
+
+  uev_t *uev = uevent_create_or_assign_event(NULL, base, STDIN_FILENO, UEV_PERSIST | UEV_READ, stdin_callback, NULL, __func__);
+  assert(uev != NULL);
+
+  assert(uevent_add(uev, 0) == 0);
+
+  pthread_t tid;
+  void *dispatch_thread(void *arg) {
+    uevent_base_dispatch((uevent_base_t *)arg);
+    return NULL;
+  }
+
+  pthread_create(&tid, NULL, dispatch_thread, base);
+  sleep(1); // дожидаемся обработки, событие может не сработать — это ок
+  PRINT_TEST_INFO("calling uevent_deinit (without del)");
+  uevent_deinit(base);
+  pthread_join(tid, NULL);
+
+  PRINT_TEST_PASSED();
+}
+
 int main(int argc, char **argv) {
   printf("Starting uevent library tests...\n\n");
 #ifdef DEBUG
@@ -1529,7 +1566,9 @@ int main(int argc, char **argv) {
       {"mt_add_del", test_mt_add_del},
       {"massive_events", test_massive_events},
       {"self_readding_timers_race", test_self_readding_timers_race},
-      {"wakeup_and_timeout_accuracy", test_wakeup_and_timeout_accuracy}};
+      {"wakeup_and_timeout_accuracy", test_wakeup_and_timeout_accuracy},
+      {"stdin_read_write_event_no_del", test_stdin_read_write_event_no_del},
+  };
 
   int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
   if (argc > 1 || rc)
@@ -1579,6 +1618,7 @@ int main(int argc, char **argv) {
   test_massive_events();
   test_self_readding_timers_race();
   test_wakeup_and_timeout_accuracy();
+  test_stdin_read_write_event_no_del();
 
   printf("\nAll tests completed successfully!\n");
   return 0;

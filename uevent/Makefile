@@ -74,6 +74,7 @@ run:
 
 clean:
 	rm -f $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
+	rm *.gcda *.gcno *.gcov
 	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
 	$(foreach mod,$(TEST_MODULES),$(MAKE) -C $(mod) clean;)
 
