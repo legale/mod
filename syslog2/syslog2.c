@@ -171,7 +171,7 @@ void syslog2_printf_(int pri, const char *func, const char *file, int line, cons
   va_end(ap);
 
   if (log_syslog) {
-    syslog2(pri, "%s", msg);
+    syslog(pri, "%s", msg);
   }
 
   int len = strlen(msg);
