@@ -13,7 +13,7 @@
 
 void *thread_func(void *arg) {
   PTHREAD_SET_NAME("worker");
-  SET_CURRENT_FUNCTION();
+  SET_CURRENT_FUNCTION;
 
   int id = (int)(intptr_t)arg;
   for (int i = 0; i < 5; i++) {

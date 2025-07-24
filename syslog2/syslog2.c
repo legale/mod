@@ -101,9 +101,13 @@ void setup_syslog2(const char *ident, int level, bool use_syslog) {
 void syslog2_print_last_functions(void) {
   syslog2_printf(LOG_ALERT, "last called functions by threads:\n");
   for (size_t index = 0; index < MAX_THREADS; index++) {
-    if (last_function[index] != NULL) {
-      char name[16] = "unknown"; // pthread names max 16 байт включая \0
-      pthread_getname_np(pthread_ids[index], name, sizeof(name));
+    if (last_function[index] != NULL && pthread_ids[index] != 0) {
+      char name[16] = {0}; // pthread names max 16 байт включая \0
+      // try get thread name, fallback to "unknown" if error
+      if (pthread_getname_np(pthread_ids[index], name, sizeof(name)) != 0) {
+        strncpy(name, "unknown", sizeof(name) - 1);
+        name[sizeof(name) - 1] = '\0';
+      }
       syslog2_printf(LOG_ALERT,
                      "idx=%zu tid=%d pthread_id=%lu name=%s last_func=%s\n",
                      index,
@@ -121,7 +125,7 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   static __thread pid_t tid = 0;
   if (!tid) tid = syscall(SYS_gettid);
   static __thread pthread_t pthid = 0;
-  if(!pthid) pthid = pthread_self();
+  if (!pthid) pthid = pthread_self();
 
   size_t index = tid % MAX_THREADS;
   last_function[index] = func;
