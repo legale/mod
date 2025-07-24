@@ -111,9 +111,7 @@ static void process_worker_task(uevent_worker_pool_t *pool, uevent_task_t *task)
     }
   }
 
-  syslog2(LOG_ALERT, "[WORKER_START] name=%s fd=%d", ev->name, ev->fd);
   ev->cb_wrapper(ev, ev->fd, task->triggered_events, task->cron_time, ev->cb, ev->arg);
-  syslog2(LOG_ALERT, "[WORKER_END] name=%s fd=%d", ev->name, ev->fd);
   uevent_put(uev);
 }
 
