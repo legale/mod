@@ -93,8 +93,8 @@ void setup_syslog2(const char *ident, int level, bool use_syslog) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
   openlog(ident ? ident : "app", LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
-  setlogmask(LOG_UPTO(level ? level : LOG_INFO));
-  syslog2_level = level ? level : LOG_INFO;
+  setlogmask(LOG_UPTO(level));
+  syslog2_level = level;
   log_syslog = use_syslog;
 }
 
