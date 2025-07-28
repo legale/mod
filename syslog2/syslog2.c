@@ -1,6 +1,8 @@
 // syslog2.c
 #include "syslog2.h"
 
+#include <stdatomic.h>
+#include <stdint.h>
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
@@ -12,7 +14,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define MSG_BUF_SZ 4096
+#define MSG_BUF_SZ 16384
 #define TIME_BUF_SZ 64
 #define OUT_BUF_SZ (MSG_BUF_SZ + TIME_BUF_SZ + 128)
 
@@ -160,12 +162,12 @@ void syslog2__(int pri, const char *func, const char *file, int line, const char
   }
 }
 
-static void set_thread_trace_info(const char *func) {
-  static __thread size_t thr_idx = SIZE_MAX;
-  static __thread pid_t tid = 0;
-  static __thread pthread_t pthid = 0;
-  static _Atomic size_t global_thr_cnt = 0;
+static __thread size_t thr_idx = SIZE_MAX;
+static __thread pid_t tid = 0;
+static __thread pthread_t pthid = 0;
+static _Atomic size_t global_thr_cnt = 0;
 
+static void set_thread_trace_info(const char *func) {
   if (!tid) tid = syscall(SYS_gettid);
   if (!pthid) pthid = pthread_self();
   if (thr_idx == SIZE_MAX) thr_idx = atomic_fetch_add(&global_thr_cnt, 1);
