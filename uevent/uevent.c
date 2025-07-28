@@ -163,6 +163,7 @@ static void uevent_base_wakeup(uevent_base_t *base) {
 }
 
 static inline bool uevent_try_lock(uevent_t *ev) {
+  FUNC_START_DEBUG;
   bool expected = false;
   return atomic_compare_exchange_strong_explicit(
       &ev->modification_lock,
@@ -611,6 +612,7 @@ static int insert_fd_to_epoll(uev_t *uev) {
 }
 
 static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t cron_time, uevent_cb_t cb, void *arg) {
+  FUNC_START_DEBUG;
   if (!uevent_try_lock(ev)) return;
 
   uevent_base_t *base = ATOM_LOAD_ACQ(ev->base);
@@ -627,25 +629,26 @@ static void uevent_user_cb_wrapper(uevent_t *ev, int fd, short events, uint64_t 
     return;
   }
 
-  uint64_t start = tu_clock_gettime_monotonic_ms();
+  // uint64_t start = tu_clock_gettime_monotonic_ms();
   if (cb) {
     cb(ev, fd, events, arg);
   }
-  uint64_t finish = tu_clock_gettime_monotonic_ms();
+  // uint64_t finish = tu_clock_gettime_monotonic_ms();
 
   // Метрики:
-  int64_t diff_cron_to_exec = (int64_t)start - (int64_t)cron_time;
-  int64_t duration = (int64_t)finish - (int64_t)start;
+  // int64_t diff_cron_to_exec = (int64_t)start - (int64_t)cron_time;
+  // int64_t duration = (int64_t)finish - (int64_t)start;
 
-  // Логирование метрик
-  uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
-  syslog2(LOG_DEBUG,
-          "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
-          ATOM_LOAD_ACQ(uev->refcount),
-          ev->name,
-          diff_cron_to_exec,
-          duration,
-          cron_time);
+  // // Логирование метрик
+  // uev_t *uev = ATOM_LOAD_ACQ(ev->uev);
+  // if(!uev) return;
+  // syslog2(LOG_DEBUG,
+  //         "[TIMER_PROFILE] refcount=%d name='%s' diff_cron_to_exec=%" PRId64 " duration=%" PRId64 " cron_time=%" PRIu64,
+  //         ATOM_LOAD_ACQ(uev->refcount),
+  //         ev->name,
+  //         diff_cron_to_exec,
+  //         duration,
+  //         cron_time);
 
   uevent_unlock(ev);
 }
