@@ -99,9 +99,10 @@ void setup_syslog2(const char *ident, int level, bool use_syslog) {
 }
 
 void syslog2_print_last_functions(void) {
-  syslog2_printf(LOG_ALERT, "last called functions by threads:\n");
+  pid_t tid = syscall(SYS_gettid);
+  syslog2_printf(LOG_ALERT, "tid=%lu last called functions by threads:\n", tid);
   for (size_t index = 0; index < MAX_THREADS; index++) {
-    if (last_function[index] != NULL && pthread_ids[index] != 0) {
+    if (last_function[index] != NULL && pthread_ids[index] != 0 && thread_ids[index] != 0) {
       char name[16] = {0}; // pthread names max 16 байт включая \0
       // try get thread name, fallback to "unknown" if error
       if (pthread_getname_np(pthread_ids[index], name, sizeof(name)) != 0) {
@@ -109,9 +110,9 @@ void syslog2_print_last_functions(void) {
         name[sizeof(name) - 1] = '\0';
       }
       syslog2_printf(LOG_ALERT,
-                     "idx=%zu tid=%d pthread_id=%lu name=%s last_func=%s\n",
+                     "idx=%zu tid=%lu pthread_id=%lu name=%s last_func=%s\n",
                      index,
-                     thread_ids[index],
+                     (unsigned long)thread_ids[index],
                      (unsigned long)pthread_ids[index],
                      name,
                      last_function[index]);
@@ -119,7 +120,7 @@ void syslog2_print_last_functions(void) {
   }
 }
 
-void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+void syslog2__(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
   pthread_once(&syslog2_once, syslog2_init_once);
 
   static __thread pid_t tid = 0;
@@ -131,6 +132,54 @@ void syslog2_(int pri, const char *func, const char *file, int line, const char 
   last_function[index] = func;
   thread_ids[index] = tid;
   pthread_ids[index] = pthid;
+
+  if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level))) return;
+
+  char msg[MSG_BUF_SZ];
+  va_list ap;
+  va_start(ap, nl);
+  vsnprintf(msg, sizeof(msg), fmt, ap);
+  va_end(ap);
+
+  if (log_syslog) {
+    syslog(pri, "[%d] %s:%d %s: %s%s", tid, file, line, func, msg, nl ? "\n" : "");
+  }
+
+  char tbuf[TIME_BUF_SZ];
+  current_time_str(tbuf, sizeof(tbuf), pri);
+
+  char outbuf[OUT_BUF_SZ];
+  int len = snprintf(outbuf, sizeof(outbuf),
+                     "[%s] [%d] %s:%d %s: %s%s",
+                     tbuf, tid, file, line, func, msg, nl ? "\n" : "");
+  if (len > 0) {
+    lock_stdout();
+    ssize_t written = write(STDOUT_FILENO, outbuf, len);
+    (void)written;
+    unlock_stdout();
+  }
+}
+
+static void set_thread_trace_info(const char *func) {
+  static __thread size_t thr_idx = SIZE_MAX;
+  static __thread pid_t tid = 0;
+  static __thread pthread_t pthid = 0;
+  static _Atomic size_t global_thr_cnt = 0;
+
+  if (!tid) tid = syscall(SYS_gettid);
+  if (!pthid) pthid = pthread_self();
+  if (thr_idx == SIZE_MAX) thr_idx = atomic_fetch_add(&global_thr_cnt, 1);
+
+  size_t index = thr_idx % MAX_THREADS;
+  last_function[index] = func;
+  thread_ids[index] = tid;
+  pthread_ids[index] = pthid;
+}
+
+void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {
+  pthread_once(&syslog2_once, syslog2_init_once);
+
+  set_thread_trace_info(func);
 
   if (!(LOG_MASK(pri) & LOG_UPTO(syslog2_level))) return;
 
