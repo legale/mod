@@ -81,17 +81,24 @@ static int parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta,
 /* parse netlink message */
 static ssize_t parse_nlbuf(struct nlmsghdr *nh, struct rtattr **tb) {
   // FUNC_START_DEBUG;
-  unsigned int len =
-      nh->nlmsg_len; /* netlink message length including header */
+  if (!nh || nh->nlmsg_len < NLMSG_LENGTH(sizeof(struct ifinfomsg))) return -1;
+
+  unsigned int len = nh->nlmsg_len; /* netlink message length including header */
   struct ifinfomsg *msg =
-      NLMSG_DATA(nh); /* macro to get a ptr right after header */
-  uint32_t msg_len =
-      NLMSG_LENGTH(sizeof(*msg)); /* netlink message length without header */
-  void *p = nh;                   /* ptr to nh */
+      NLMSG_DATA(nh);                            /* macro to get a ptr right after header */
+  uint32_t msg_len = NLMSG_LENGTH(sizeof(*msg)); /* netlink message length without header */
+
+  if (len < msg_len) return -1;
+
+  void *p = nh; /* ptr to nh */
+
   /* this is very first rtnetlink attribute ptr */
   struct rtattr *rta = (struct rtattr *)(p + msg_len); /* move ptr forward */
-  len -= msg_len;                                      /* count message length */
-  parse_rtattr(tb, IFLA_MAX, rta, len);                /* fill tb attribute buffer */
+
+  if ((void *)rta > (void *)nh + nh->nlmsg_len) return -1;
+
+  len -= msg_len;                       /* count message length */
+  parse_rtattr(tb, IFLA_MAX, rta, len); /* fill tb attribute buffer */
   return nh->nlmsg_len;
 }
 
@@ -244,21 +251,21 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
     return -1;
   }
 
-  for (nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len);
-       nh = NLMSG_NEXT(nh, len)) {
+  for (nh = (struct nlmsghdr *)buf; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
     if (counter > 100) {
       syslog2(LOG_ALERT, "counter %zu > 100", counter);
       break;
     }
 
-    // syslog2(LOG_DEBUG, "cnt: %zu msg type len: %d NLMSG len: %zu FLAGS
-    // NLM_F_MULTI: %s", counter++, nh->nlmsg_type, (size_t)nh->nlmsg_len,
-    // nh->nlmsg_flags & NLM_F_MULTI ? "true" : "false");
-
     /* The end of multipart message */
     if (nh->nlmsg_type == NLMSG_DONE) {
       // syslog2(LOG_DEBUG, "NLMSG_DONE");
       return -1;
+    }
+
+    if (nh->nlmsg_len < NLMSG_LENGTH(sizeof(struct ifinfomsg))) {
+      syslog2(LOG_WARNING, "nlmsg too short");
+      continue;
     }
 
     /* Error handling */
@@ -268,25 +275,21 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
     }
 
     struct rtattr *tb[IFLA_MAX + 1] = {0};
-    (void)parse_nlbuf(nh, tb);
-    // ssize_t nlmsg_len = parse_nlbuf(nh, tb);
-    // syslog2(LOG_INFO, "parsed nlmsg_len: %zd", nlmsg_len);
+    if (parse_nlbuf(nh, tb) < 0) {
+      syslog2(LOG_WARNING, "failed to parse nlmsg");
+      continue;
+    }
 
-    netdev_item_t *dev = NULL;
-    struct ifinfomsg *msg =
-        NLMSG_DATA(nh); /* macro to get a ptr right after header */
+    struct ifinfomsg *msg = NLMSG_DATA(nh); /* macro to get a ptr right after header */
     /* skip loopback device and other non ARPHRD_ETHER */
-
     if (msg->ifi_type != ARPHRD_ETHER) {
       continue;
     }
 
+    netdev_item_t *dev = calloc(1, sizeof(netdev_item_t));
     if (!dev) {
-      dev = calloc(1, sizeof(netdev_item_t));
-      if (!dev) {
-        syslog2(LOG_ALERT, "failed to allocate memory for netdev_item_s");
-        return -1;
-      }
+      syslog2(LOG_ALERT, "failed to allocate memory for netdev_item_s");
+      return -1;
     }
 
     dev->index = msg->ifi_index;
@@ -295,7 +298,8 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
       struct rtattr *linkinfo[IFLA_INFO_MAX + 1];
       parse_rtattr_nested(linkinfo, IFLA_INFO_MAX, tb[IFLA_LINKINFO]);
 
-      if (linkinfo[IFLA_INFO_KIND]) {
+      if (linkinfo[IFLA_INFO_KIND] &&
+          RTA_PAYLOAD(linkinfo[IFLA_INFO_KIND]) >= IFNAMSIZ) {
         memcpy(dev->kind, RTA_DATA(linkinfo[IFLA_INFO_KIND]), IFNAMSIZ);
         if (strcmp("bridge", dev->kind) == 0) dev->is_bridge = true;
       }
@@ -303,25 +307,31 @@ static int parse_recv_chunk(void *buf, ssize_t len, struct slist_head *list) {
 
     if (!tb[IFLA_IFNAME]) {
       syslog2(LOG_WARNING, "IFLA_IFNAME attribute is missing.");
+      free(dev);
+      continue;
+    } else if (RTA_PAYLOAD(tb[IFLA_IFNAME]) >= sizeof(dev->name)) {
+      syslog2(LOG_WARNING, "IFLA_IFNAME too long: %u", RTA_PAYLOAD(tb[IFLA_IFNAME]));
+      free(dev);
       continue;
     } else {
-      strcpy(dev->name, (char *)RTA_DATA(tb[IFLA_IFNAME]));
+      strncpy(dev->name, (char *)RTA_DATA(tb[IFLA_IFNAME]), RTA_PAYLOAD(tb[IFLA_IFNAME]));
+      dev->name[RTA_PAYLOAD(tb[IFLA_IFNAME])] = '\0'; // ensure null-termination
     }
 
-    if (tb[IFLA_LINK]) {
+    if (tb[IFLA_LINK] && RTA_PAYLOAD(tb[IFLA_LINK]) >= sizeof(uint32_t)) {
       dev->ifla_link_idx = *(uint32_t *)RTA_DATA(tb[IFLA_LINK]);
     }
 
-    if (tb[IFLA_MASTER]) {
+    if (tb[IFLA_MASTER] && RTA_PAYLOAD(tb[IFLA_MASTER]) >= sizeof(uint32_t)) {
       dev->master_idx = *(uint32_t *)RTA_DATA(tb[IFLA_MASTER]);
     }
 
     /* mac */
-    if (tb[IFLA_ADDRESS]) {
+    if (tb[IFLA_ADDRESS] && RTA_PAYLOAD(tb[IFLA_ADDRESS]) >= ETH_ALEN) {
       memcpy((void *)&dev->ll_addr, RTA_DATA(tb[IFLA_ADDRESS]), ETH_ALEN);
     }
 
-    if (dev) slist_add_tail(&dev->list, list); // append dev to list tail
+    slist_add_tail(&dev->list, list); // append dev to list tail
 
     syslog2(LOG_DEBUG, "FLAGS NLM_F_MULTI: %s", nh->nlmsg_flags & NLM_F_MULTI ? "true" : "false");
   }
