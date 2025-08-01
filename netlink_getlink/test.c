@@ -48,9 +48,7 @@ static void test_default_logger_stdout(void) {
 int main(int argc, char **argv) {
   struct test_entry tests[] = {
       {"get_netdev_list", test_get_netdev_list},
-      {"default_logger_stdout", test_default_logger_stdout},
-
-  };
+      {"default_logger_stdout", test_default_logger_stdout}};
   int rc = run_named_test(argc > 1 ? argv[1] : NULL, tests, ARRAY_SIZE(tests));
   if (!rc && argc == 1)
     printf(KGRN "====== All netlink_getlink tests passed! ======\n" KNRM);

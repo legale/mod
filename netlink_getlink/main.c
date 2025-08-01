@@ -2,22 +2,11 @@
 #include "libnl_getlink.h"
 #include <errno.h>
 #include <stdio.h>
-#include <signal.h>
-#include <stdlib.h>
-
-static void sig_sigsegv_cb(int sig) {
-  syslog2_printf(LOG_ALERT, "Caught signal %d %s\n", sig, strsignal(sig));
-  syslog2_print_last_functions();
-
-  exit(EXIT_FAILURE);
-}
+#include <syslog.h>
 
 int main(void) {
   setup_syslog2("main_syslog2", LOG_DEBUG, false);
 
-  signal(SIGSEGV, sig_sigsegv_cb);
-  signal(SIGILL, sig_sigsegv_cb);
-  
   struct slist_head list;
   INIT_SLIST_HEAD(&list);
   get_netdev(&list);
@@ -54,9 +43,6 @@ int main(void) {
            item->kind, item->name,
            addr_raw[0], addr_raw[1], addr_raw[2], addr_raw[3], addr_raw[4], addr_raw[5]);
   }
-  free_netdev_list(&list);
-
-  char *str = NULL;
-  *str = '0';
+  // free_netdev_list(&list);
   return 0;
 }
