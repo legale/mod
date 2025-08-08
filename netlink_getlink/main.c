@@ -43,6 +43,6 @@ int main(void) {
            item->kind, item->name,
            addr_raw[0], addr_raw[1], addr_raw[2], addr_raw[3], addr_raw[4], addr_raw[5]);
   }
-  // free_netdev_list(&list);
+  free_netdev_list(&list);
   return 0;
 }
