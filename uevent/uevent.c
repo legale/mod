@@ -73,7 +73,7 @@ uint64_t tu_clock_gettime_monotonic_ms() {
     syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
     return 0U;
   }
-  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+  return (uint64_t)ts.tv_sec * MSEC_PER_SEC + (uint64_t)(ts.tv_nsec / NSEC_PER_MSEC);
 }
 
 __attribute__((weak)) int syslog2_get_pri() {
@@ -81,7 +81,7 @@ __attribute__((weak)) int syslog2_get_pri() {
 }
 
 __attribute__((weak)) int msleep(uint64_t ms) {
-  struct timespec ts = {.tv_sec = ms / MS_PER_SEC, .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
+  struct timespec ts = {.tv_sec = ms / MSEC_PER_SEC, .tv_nsec = (ms % MSEC_PER_SEC) * NSEC_PER_MSEC};
   return nanosleep(&ts, NULL);
 }
 #endif // IS_DYNAMIC_LIB
