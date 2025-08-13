@@ -38,12 +38,12 @@ typedef struct {
 #endif
 
 // unit conversion macros
-#define NS_PER_USEC 1000U
-#define USEC_PER_MS 1000U
-#define MS_PER_SEC 1000U
-#define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
-#define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
-#define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+#define NSEC_PER_USEC 1000U
+#define USEC_PER_MSEC 1000U
+#define MSEC_PER_SEC 1000U
+#define NSEC_PER_MSEC (USEC_PER_MSEC * NSEC_PER_USEC)
+#define USEC_PER_SEC (MSEC_PER_SEC * USEC_PER_MSEC)
+#define NSEC_PER_SEC (MSEC_PER_SEC * NSEC_PER_MSEC)
 
 /* atomic_timespec struct */
 typedef struct atomic_timespec {
@@ -75,7 +75,7 @@ EXPORT_API void atomic_ts_cpy(atomic_timespec_t *dest, atomic_timespec_t *src);
 static inline void tu_diff_ts(struct timespec *diff, const struct timespec *start, const struct timespec *end) {
   if (end->tv_nsec < start->tv_nsec) {
     diff->tv_sec = end->tv_sec - start->tv_sec - 1;
-    diff->tv_nsec = NS_PER_SEC + end->tv_nsec - start->tv_nsec;
+    diff->tv_nsec = NSEC_PER_SEC + end->tv_nsec - start->tv_nsec;
   } else {
     diff->tv_sec = end->tv_sec - start->tv_sec;
     diff->tv_nsec = end->tv_nsec - start->tv_nsec;

@@ -70,9 +70,9 @@ static inline int64_t rd_be64s(const uint8_t *p) {
 static inline void timespec_add(struct timespec *a, const struct timespec *b) {
   a->tv_sec += b->tv_sec;
   a->tv_nsec += b->tv_nsec;
-  if (a->tv_nsec >= (int)NS_PER_SEC) {
+  if (a->tv_nsec >= (int)NSEC_PER_SEC) {
     ++a->tv_sec;
-    a->tv_nsec -= (int)NS_PER_SEC;
+    a->tv_nsec -= (int)NSEC_PER_SEC;
   }
 }
 
@@ -81,7 +81,7 @@ static inline void timespec_sub(const struct timespec *a, const struct timespec 
   res->tv_nsec = a->tv_nsec - b->tv_nsec;
   if (res->tv_nsec < 0) {
     --res->tv_sec;
-    res->tv_nsec += (int)NS_PER_SEC;
+    res->tv_nsec += (int)NSEC_PER_SEC;
   }
 }
 
@@ -294,7 +294,7 @@ int64_t tu_get_cached_tz_off() {
 uint64_t tu_clock_gettime_monotonic_ms(void) {
   struct timespec ts;
   if (unlikely(clock_gettime(CLOCK_MONOTONIC_RAW, &ts) != 0)) return 0;
-  return (uint64_t)ts.tv_sec * MS_PER_SEC + ts.tv_nsec / NS_PER_MS;
+  return (uint64_t)ts.tv_sec * MSEC_PER_SEC + ts.tv_nsec / NSEC_PER_MSEC;
 }
 
 /* локальное время */
@@ -320,8 +320,8 @@ int tu_clock_gettime_local_mono(struct timespec *ts) {
   ts->tv_nsec += g_ts_real_mono_off.tv_nsec;
 
   // нормализация nsec, чтобы значение там оставалось меньше секунды
-  if (ts->tv_nsec >= (int)NS_PER_SEC) {
-    ts->tv_nsec -= (int)NS_PER_SEC;
+  if (ts->tv_nsec >= (int)NSEC_PER_SEC) {
+    ts->tv_nsec -= (int)NSEC_PER_SEC;
     ts->tv_sec += 1;
   }
 
@@ -336,7 +336,7 @@ int tu_clock_gettime_local_mono(struct timespec *ts) {
 
 /* ====== утилиты сна, timespec арифметика ====== */
 int msleep(uint64_t ms) {
-  struct timespec ts = {.tv_sec = ms / MS_PER_SEC, .tv_nsec = (ms % MS_PER_SEC) * NS_PER_MS};
+  struct timespec ts = {.tv_sec = ms / MSEC_PER_SEC, .tv_nsec = (ms % MSEC_PER_SEC) * NSEC_PER_MSEC};
   return nanosleep(&ts, NULL);
 }
 

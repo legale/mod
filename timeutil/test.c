@@ -105,14 +105,14 @@ static void test_monotonic_fast_ms(void) {
   for (int i = 0; i < iters; i++)
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-  sys_ns = (end.tv_sec - start.tv_sec) * NS_PER_SEC + (end.tv_nsec - start.tv_nsec);
+  sys_ns = (end.tv_sec - start.tv_sec) * NSEC_PER_SEC + (end.tv_nsec - start.tv_nsec);
 
   /* fast */
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
   for (int i = 0; i < iters; i++)
     tu_clock_gettime_monotonic_ms();
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-  fast_ns = (end.tv_sec - start.tv_sec) * NS_PER_SEC + (end.tv_nsec - start.tv_nsec);
+  fast_ns = (end.tv_sec - start.tv_sec) * NSEC_PER_SEC + (end.tv_nsec - start.tv_nsec);
 
   double avg_sys = (double)sys_ns / iters;
   double avg_fast = (double)fast_ns / iters;
@@ -169,7 +169,7 @@ static void test_perf_overall(void) {
   PRINT_TEST_INFO("iter=%d  localtime_sys=%" PRId64 ".%" PRId64 "", i, (int64_t)ts.tv_sec, (int64_t)ts.tv_nsec);
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-  sys_ns = (end.tv_sec - start.tv_sec) * NS_PER_SEC + (end.tv_nsec - start.tv_nsec);
+  sys_ns = (end.tv_sec - start.tv_sec) * NSEC_PER_SEC + (end.tv_nsec - start.tv_nsec);
 
   /* fast local (UTC->local) */
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -178,7 +178,7 @@ static void test_perf_overall(void) {
   }
   PRINT_TEST_INFO("iter=%d  localtime_lib=%" PRId64 ".%" PRId64 "", i, (int64_t)ts.tv_sec, (int64_t)ts.tv_nsec);
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-  fast_ns = (end.tv_sec - start.tv_sec) * NS_PER_SEC + (end.tv_nsec - start.tv_nsec);
+  fast_ns = (end.tv_sec - start.tv_sec) * NSEC_PER_SEC + (end.tv_nsec - start.tv_nsec);
 
   /* fast local mono (UTC->local) */
   clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -187,7 +187,7 @@ static void test_perf_overall(void) {
   }
   PRINT_TEST_INFO("iter=%d localtime_mono=%" PRId64 ".%" PRId64 "", i, (int64_t)ts.tv_sec, (int64_t)ts.tv_nsec);
   clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-  fast_mono_ns = (end.tv_sec - start.tv_sec) * NS_PER_SEC + (end.tv_nsec - start.tv_nsec);
+  fast_mono_ns = (end.tv_sec - start.tv_sec) * NSEC_PER_SEC + (end.tv_nsec - start.tv_nsec);
 
   PRINT_TEST_INFO("avg_sys_ns=%.2f avg_lib_ns=%.2f avg_lib_mono_ns=%.2f", (double)sys_ns / iters, (double)fast_ns / iters, (double)fast_mono_ns / iters);
   PRINT_TEST_PASSED();
