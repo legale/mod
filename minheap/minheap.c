@@ -38,11 +38,7 @@ __attribute__((weak)) void *realloc(void *ptr, size_t size);
 __attribute__((weak)) void free(void *ptr);
 
 __attribute__((weak)) void setup_syslog2(const char *ident, int level, bool use_syslog);
-void setup_syslog2(const char *ident, int level, bool use_syslog) {
-  (void)ident;
-  (void)level;
-  (void)use_syslog;
-}
+void setup_syslog2(const char *ident, int level, bool use_syslog) {}
 
 __attribute__((weak)) void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...);
 void syslog2_(int pri, const char *func, const char *file, int line, const char *fmt, bool nl, ...) {

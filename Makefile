@@ -1,7 +1,5 @@
-SUBDIRS := htable list modules/minheap netlink_getlink nlmon syslog2 timeutil \
-           uevent leak_detector_c udeque hashtable-linux-kernel
-COV_DIRS := htable list modules/minheap netlink_getlink nlmon syslog2 timeutil \
-           leak_detector_c udeque hashtable-linux-kernel
+SUBDIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil uevent leak_detector_c udeque hashtable-linux-kernel
+COV_DIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil leak_detector_c udeque hashtable-linux-kernel
 
 .PHONY: test coverage clean
 
