@@ -19,6 +19,7 @@ TARGET_LIB = lib$(NAME).a
 TARGET_SO  = lib$(NAME).so
 TARGET_TEST = test
 TARGET_MAIN = main
+TEST_BINS = test
 
 .PHONY: run all clean perf leak coverage $(MODULES)
 
@@ -39,8 +40,9 @@ $(TARGET_SO): $(OBJ_SHARED) $(MODULES)
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 
 # test binary (static)
-$(TARGET_TEST): test.o $(TARGET_LIB)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) \
+$(TARGET_TEST): test.o $(TARGET_LIB) $(TEST_MODULES)
+	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
+	$(addprefix $(addsuffix /lib,$(notdir $(TEST_MODULES))).a,$(TEST_MODULES)) \
 	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
 	./test
 
@@ -78,11 +80,18 @@ leak: $(TARGET_TEST)
 
 # ------------------ покрытие ------------------
 
-COV_CFLAGS = --coverage -O0 -g
+COV_CFLAGS = --coverage -O0 -g -fPIC
 COV_LDFLAGS = --coverage
+COV_SRCS = $(SRC)
+
 coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" LIBS="$(LIBS)" $(TARGET_TEST)
+	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" $(TEST_BINS)
+	@for t in $(TEST_BINS); do ./$$t || exit 1; done
 	@echo "=== Coverage report (gcov): ==="
-	@gcov minheap.c | grep -A10 "File 'minheap.c'"
+	@for f in $(COV_SRCS); do \
+	        gcov "$$f" | grep -A10 "File '$$f'"; \
+	done
 	@echo "=== Coverage report (summary): ==="
-	@gcov -b minheap.c | grep -E 'Lines executed|Branches executed'
+	@for f in $(COV_SRCS); do \
+	        gcov -b "$$f" | grep -E 'Lines executed|Branches executed'; \
+	done
