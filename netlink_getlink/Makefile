@@ -2,12 +2,13 @@ NAME = netlink_getlink
 CC ?= gcc
 CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
 CFLAGS = $(CFLAGS_BASE) -fPIC
+CFLAGS += -pthread
 LDFLAGS = -Wl,--gc-sections
 
 # зависимости
 MODULES = ../timeutil ../syslog2
 
-EXTRA_LIBS = 
+EXTRA_LIBS = pthread
 
 SRC = $(filter-out main.c test.c, $(wildcard *.c))
 HDR = $(wildcard *.h)
