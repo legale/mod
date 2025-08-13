@@ -35,7 +35,7 @@ static uint64_t tu_get_current_time_ms() {
     syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
     return 0U;
   }
-  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+  return (uint64_t)ts.tv_sec * MSEC_PER_SEC + (uint64_t)(ts.tv_nsec / NSEC_PER_MSEC);
 }
 
 // --- Юнит-тесты ---
