@@ -1,0 +1,29 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+        cfg: [debug, asan, ubsan, tsan]
+    steps:
+    - uses: actions/checkout@v4
+    - name: deps
+      run: sudo apt-get update && sudo apt-get install -y valgrind
+    - name: build
+      env: { CC: ${{ matrix.cc }} }
+      run: |
+        ./scripts/run_all.sh || exit 1
+  musl:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: docker/setup-buildx-action@v3
+    - name: musl
+      run: |
+        for d in modules/*; do
+          [ -d "$d" ] || continue
+          docker run --rm -v "$PWD/$d":/w -w /w alpine:latest sh -lc 'apk add build-base musl-dev valgrind && make clean && make debug && make test && make tsan && make test-thread'
+        done
