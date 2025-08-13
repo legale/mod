@@ -1,97 +1,70 @@
-NAME = minheap
-CC ?= gcc
-CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
-CFLAGS = $(CFLAGS_BASE) -fPIC
-LDFLAGS = -Wl,--gc-sections
+BUILD ?= debug
+include build/common.mk
 
-# зависимости
-MODULES = ../timeutil ../syslog2
+LIB = build/$(BUILD)/libminheap.a
 
-EXTRA_LIBS = 
+all: release
 
-SRC = $(filter-out main.c test.c, $(wildcard *.c))
-HDR = $(wildcard *.h)
+lib: $(LIB)
 
-OBJ_STATIC = $(SRC:.c=.o)
-OBJ_SHARED = $(SRC:.c=_shared.o)
+build/$(BUILD):
+	mkdir -p $@
 
-TARGET_LIB = lib$(NAME).a
-TARGET_SO  = lib$(NAME).so
-TARGET_TEST = test
-TARGET_MAIN = main
-TEST_BINS = test
+build/$(BUILD)/minheap.o: src/minheap.c | build/$(BUILD)
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-.PHONY: run all clean perf leak coverage $(MODULES)
-
-all: $(MODULES) $(TARGET_LIB) $(TARGET_SO) $(TARGET_MAIN)
-
-# Собираем зависимости
-$(MODULES):
-	$(MAKE) -C $@
-
-# static library
-$(TARGET_LIB): $(OBJ_STATIC)
+$(LIB): build/$(BUILD)/minheap.o
 	ar rcs $@ $^
 
-# shared library (жёсткая зависимость на зависимости)
-$(TARGET_SO): $(OBJ_SHARED) $(MODULES)
-	$(CC) $(CFLAGS) -shared -o $@ $(OBJ_SHARED) \
-	$(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(LDFLAGS) \
-	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+debug: BUILD=debug
+debug: lib
 
-# test binary (static)
-$(TARGET_TEST): test.o $(TARGET_LIB) $(TEST_MODULES)
-	$(CC) $(CFLAGS) -o $@ test.o $(TARGET_LIB) \
-	$(addprefix $(addsuffix /lib,$(notdir $(TEST_MODULES))).a,$(TEST_MODULES)) \
-	$(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
-	./test
+release: BUILD=release
+release: lib
 
-space := $(empty) $(empty)
+asan: BUILD=asan
+asan: lib
 
-# main binary (linked with .so)
-$(TARGET_MAIN): main.o $(TARGET_SO) $(MODULES)
-	$(CC) $(CFLAGS) -o $@ main.o $(TARGET_SO) -L. -l$(NAME) $(addprefix -L,$(MODULES)) $(addprefix -l,$(notdir $(MODULES))) $(addprefix -l,$(EXTRA_LIBS)) $(LDFLAGS)
+ubsan: BUILD=ubsan
+ubsan: lib
 
-run:
-	LD_LIBRARY_PATH=.:$(subst $(space),:,$(strip $(MODULES))) ./$(TARGET_MAIN)
+tsan: BUILD=tsan
+tsan: lib
 
-# static .o
-%.o: %.c $(HDR)
-	$(CC) $(CFLAGS) -c $< -o $@
+DEMO = build/$(BUILD)/demo
+demo: debug $(DEMO)
+$(DEMO): demo/main.c lib | build/$(BUILD)
+	$(CC) $(CFLAGS) $(INCLUDES) demo/main.c $(LIB) -o $@ $(LDFLAGS)
 
-# shared .o
-%_shared.o: %.c $(HDR)
-	$(CC) $(CFLAGS) -DIS_DYNAMIC_LIB -c $< -o $@
+UNIT = build/$(BUILD)/test_unit
+$(UNIT): tests/unit_heap.c tests/test_runner.c lib | build/$(BUILD)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/unit_heap.c tests/test_runner.c $(LIB) $(LDFLAGS)
+
+test: debug $(UNIT)
+	scripts/test.sh $(UNIT)
+
+THREAD_BIN = build/$(BUILD)/test_thread
+$(THREAD_BIN): tests/thread_basic.c tests/test_runner.c lib | build/$(BUILD)
+	$(CC) $(CFLAGS) $(INCLUDES) -DTEST_THREAD -o $@ tests/thread_basic.c tests/test_runner.c $(LIB) $(LDFLAGS)
+
+test-thread:
+	$(MAKE) BUILD=tsan lib
+	$(MAKE) BUILD=tsan build/tsan/test_thread
+	scripts/test.sh build/tsan/test_thread
+
+helgrind:
+	$(MAKE) BUILD=debug lib
+	$(MAKE) BUILD=debug build/debug/test_thread
+	valgrind --tool=helgrind build/debug/test_thread
+
+STRESS_BIN = build/$(BUILD)/test_stress
+$(STRESS_BIN): tests/stress_random.c tests/test_runner.c lib | build/$(BUILD)
+	$(CC) $(CFLAGS) $(INCLUDES) -DTEST_STRESS -o $@ tests/stress_random.c tests/test_runner.c $(LIB) $(LDFLAGS)
+
+test-stress: debug $(STRESS_BIN)
+	scripts/test.sh $(STRESS_BIN)
 
 clean:
-	rm -f *.gcov *.gcno $(OBJ_STATIC) $(OBJ_SHARED) *.o *.a *.so $(TARGET_TEST) $(TARGET_MAIN)
-	$(foreach mod,$(MODULES),$(MAKE) -C $(mod) clean;)
+	find build -mindepth 1 -maxdepth 1 ! -name common.mk -exec rm -rf {} +
 
-# ------------------ профилирование и утечки ------------------
-
-perf: $(TARGET_TEST)
-	@echo "Running valgrind callgrind profiler..."
-	valgrind --tool=callgrind --callgrind-out-file=callgrind.out ./$(TARGET_TEST)
-	callgrind_annotate --inclusive=yes --auto=yes callgrind.out | head -n60
-
-leak: $(TARGET_TEST)
-	@echo "Running valgrind memcheck for memory leaks..."
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET_TEST)
-
-# ------------------ покрытие ------------------
-
-COV_CFLAGS = --coverage -O0 -g -fPIC
-COV_LDFLAGS = --coverage
-COV_SRCS = $(SRC)
-
-coverage: clean
-	$(MAKE) CFLAGS="$(COV_CFLAGS)" LDFLAGS="$(COV_LDFLAGS)" $(TEST_BINS)
-	@for t in $(TEST_BINS); do ./$$t || exit 1; done
-	@echo "=== Coverage report (gcov): ==="
-	@for f in $(COV_SRCS); do \
-		gcov "$$f" | grep -A10 "File '$$f'"; \
-	done
-	@echo "=== Coverage report (summary): ==="
-	@for f in $(COV_SRCS); do \
-		gcov -b "$$f" | grep -E 'Lines executed|Branches executed'; \
-	done
+.PHONY: all debug release asan ubsan tsan lib test test-thread test-stress helgrind demo clean
