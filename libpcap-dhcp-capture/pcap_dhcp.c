@@ -30,12 +30,12 @@
 #define syslog2(pri, fmt, ...) syslog2_(pri, __func__, __FILE__, __LINE__, fmt, true, ##__VA_ARGS__)
 
 // unit conversion macros
-#define NS_PER_USEC 1000U
-#define USEC_PER_MS 1000U
-#define MS_PER_SEC 1000U
-#define NS_PER_MS (USEC_PER_MS * NS_PER_USEC)
-#define USEC_PER_SEC (MS_PER_SEC * USEC_PER_MS)
-#define NS_PER_SEC (MS_PER_SEC * NS_PER_MS)
+#define NSEC_PER_USEC 1000U
+#define USEC_PER_MSEC 1000U
+#define MSEC_PER_SEC 1000U
+#define NSEC_PER_MSEC (USEC_PER_MSEC * NSEC_PER_USEC)
+#define USEC_PER_SEC (MSEC_PER_SEC * USEC_PER_MSEC)
+#define NSEC_PER_SEC (MSEC_PER_SEC * NSEC_PER_MSEC)
 
 __attribute__((weak)) void *malloc(size_t size);
 __attribute__((weak)) void *calloc(size_t nmemb, size_t size);
@@ -74,7 +74,7 @@ uint64_t tu_get_current_time_ms() {
     syslog2(LOG_INFO, "clock_gettime_fast failed: ret=%d", ret);
     return 0U;
   }
-  return (uint64_t)ts.tv_sec * MS_PER_SEC + (uint64_t)(ts.tv_nsec / NS_PER_MS);
+  return (uint64_t)ts.tv_sec * MSEC_PER_SEC + (uint64_t)(ts.tv_nsec / NSEC_PER_MSEC);
 }
 #endif // IS_DYNAMIC_LIB
 // logger END
