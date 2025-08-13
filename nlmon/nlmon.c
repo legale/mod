@@ -40,7 +40,8 @@ __attribute__((weak)) void syslog2_(int pri, const char *func, const char *file,
   if (len >= (int)sz) len = sz - 1;
   if (nl && len < (int)sz - 1) buf[len++] = '\n';
 
-  write(STDOUT_FILENO, buf, len);
+  ssize_t ret = write(STDOUT_FILENO, buf, len);
+  (void)ret;
 }
 #endif // IS_DYNAMIC_LIB
 
