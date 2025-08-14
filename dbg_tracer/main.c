@@ -3,7 +3,7 @@
 
 static void *thread_fn(void *arg) {
   (void)arg;
-  trace_reg_attach();
+  TRACE();
   return NULL;
 }
 
@@ -12,5 +12,6 @@ int main(void) {
   pthread_t th;
   pthread_create(&th, NULL, thread_fn, NULL);
   pthread_join(th, NULL);
+  tracer_dump_now();
   return 0;
 }

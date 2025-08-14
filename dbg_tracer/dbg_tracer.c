@@ -1,5 +1,6 @@
 /* dbg_tracer.c
- * build: gcc -O2 -g -fno-omit-frame-pointer -fstack-protector-strong -D_FORTIFY_SOURCE=2 -pthread -rdynamic -o tracer dbg_tracer.c
+ * build: gcc -O2 -g -fno-omit-frame-pointer -fstack-protector-strong -D_FORTIFY_SOURCE=2 -pthread -rdynamic -fPIC -shared -o libdbg_tracer.so dbg_tracer.c
+ * link:  -ldl if needed
  */
 
 #define _GNU_SOURCE
@@ -20,42 +21,41 @@
 #include <ucontext.h>
 #include <unistd.h>
 
-/* async-signal-safe io */
+/* async signal safe io */
+
 static inline void xwrite(int fd, const void *buf, size_t len) {
   ssize_t r = write(fd, buf, len);
   (void)r;
 }
 
 static inline pid_t gettid_fast(void) {
-  static __thread pid_t tid = 0;
+  static __thread pid_t tid;
   if (!tid) tid = syscall(SYS_gettid);
   return tid;
 }
+
 static void wrs(int fd, const char *s) { xwrite(fd, s, strlen(s)); }
+
 static void wrhex_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
   b[i--] = 0;
-  if (!v) {
-    b[i--] = '0';
-  }
+  if (!v) b[i--] = '0';
   const char *h = "0123456789abcdef";
   while (v && i >= 0) {
-    unsigned d = v & 0xf;
-    b[i--] = h[d];
+    b[i--] = h[v & 0xf];
     v >>= 4;
   }
   b[i--] = 'x';
   b[i--] = '0';
   xwrite(fd, b + i + 1, 31 - i);
 }
+
 static void wrdec_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
   b[i--] = 0;
-  if (!v) {
-    b[i--] = '0';
-  }
+  if (!v) b[i--] = '0';
   while (v && i >= 0) {
     b[i--] = '0' + (v % 10);
     v /= 10;
@@ -63,7 +63,6 @@ static void wrdec_u64(int fd, unsigned long v) {
   xwrite(fd, b + i + 1, 31 - i);
 }
 
-/* safe snprintf that trips immediately */
 EXPORT_API int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
@@ -76,9 +75,10 @@ EXPORT_API int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
   return n;
 }
 
-/* trace registry shared across threads */
+/* trace registry */
+
 #define TRACE_N 256
-#define MAX_THR 64
+#define MAX_THR 128
 
 typedef struct {
   char site[96];
@@ -100,33 +100,31 @@ typedef struct {
 } trace_reg_t;
 
 static trace_reg_t *gtr;
-static __thread trace_slot_t *my_slot;
+static __thread trace_slot_t *trace_slot;
 
-static uint64_t now_ms(void) __attribute__((unused));
 static uint64_t now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
-  return (uint64_t)ts.tv_sec * 1000ull + ts.tv_nsec / 1000000ull;
+  return (uint64_t)ts.tv_sec * 1000ull + (uint64_t)ts.tv_nsec / 1000000ull;
 }
 
 static void trace_reg_init(void) {
   if (gtr) return;
-  void *m = mmap(NULL, sizeof(trace_reg_t), PROT_READ | PROT_WRITE,
-                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  void *m = mmap(NULL, sizeof(trace_reg_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (m == MAP_FAILED) _exit(111);
   gtr = (trace_reg_t *)m;
   memset(gtr, 0, sizeof(*gtr));
   atomic_store(&gtr->inited, 1);
 }
 
-void trace_reg_attach_name(const char *name) {
+EXPORT_API void trace_reg_attach_name(const char *name) {
   if (!gtr) trace_reg_init();
 
-  if (my_slot && atomic_load(&my_slot->used)) {
+  if (trace_slot && atomic_load(&trace_slot->used)) {
     if (name && *name) {
       prctl(PR_SET_NAME, name);
-      strncpy(my_slot->name, name, sizeof(my_slot->name) - 1);
-      my_slot->name[sizeof(my_slot->name) - 1] = '\0';
+      strncpy(trace_slot->name, name, sizeof(trace_slot->name) - 1);
+      trace_slot->name[sizeof(trace_slot->name) - 1] = 0;
     }
     return;
   }
@@ -148,34 +146,31 @@ void trace_reg_attach_name(const char *name) {
   prctl(PR_SET_NAME, tname);
   snprintf(s->name, sizeof(s->name), "%s", tname);
 
-  atomic_store(&s->idx, 0);
+  atomic_store(&s->idx, 0u);
   atomic_store(&s->used, 1);
-  my_slot = s;
-}
-
-void trace_set_thread_name(const char *name) {
-  if (!name || !*name) return;
-  if (!my_slot || !atomic_load(&my_slot->used)) {
-    trace_reg_attach_name(name);
-    return;
-  }
-  prctl(PR_SET_NAME, name);
-  snprintf(my_slot->name, sizeof(my_slot->name), "%s", name);
+  trace_slot = s;
 }
 
 EXPORT_API void trace_reg_attach(void) { trace_reg_attach_name(NULL); }
 
-#define STR1(x) #x
-#define STR2(x) STR1(x)
+EXPORT_API void trace_set_thread_name(const char *name) {
+  if (!name || !*name) return;
+  if (!trace_slot || !atomic_load(&trace_slot->used)) {
+    trace_reg_attach_name(name);
+    return;
+  }
+  prctl(PR_SET_NAME, name);
+  snprintf(trace_slot->name, sizeof(trace_slot->name), "%s", name);
+}
 
-#define TRACE()                                                                        \
-  do {                                                                                 \
-    if (!my_slot || !atomic_load(&my_slot->used)) trace_reg_attach();                  \
-    unsigned k = atomic_fetch_add(&my_slot->idx, 1);                                   \
-    trace_ent_t *e = &my_slot->ring[k % TRACE_N];                                      \
-    safe_snprintf(e->site, sizeof(e->site), "%s:%d:%s", __FILE__, __LINE__, __func__); \
-    e->t = now_ms();                                                                   \
-  } while (0)
+/* the only write entry called by header macro */
+EXPORT_API void tracer_mark_point(const char *file, int line, const char *func) {
+  if (!trace_slot || !atomic_load(&trace_slot->used)) trace_reg_attach();
+  unsigned k = atomic_fetch_add(&trace_slot->idx, 1);
+  trace_ent_t *e = &trace_slot->ring[k % TRACE_N];
+  safe_snprintf(e->site, sizeof(e->site), "%s:%d:%s", file, line, func);
+  e->t = now_ms();
+}
 
 static void trace_dump_all(int fd) {
   if (!gtr) return;
@@ -188,12 +183,12 @@ static void trace_dump_all(int fd) {
     wrs(fd, s->name);
     wrs(fd, "\n");
     unsigned n = atomic_load(&s->idx);
-    unsigned start = (n > TRACE_N) ? (n - TRACE_N) : 0;
+    unsigned start = n > TRACE_N ? n - TRACE_N : 0u;
     for (unsigned j = start; j < n; j++) {
       trace_ent_t *e = &s->ring[j % TRACE_N];
-    if (!e->site[0]) continue;
+      if (!e->site[0]) continue;
       wrs(fd, "  ");
-      wrdec_u64(fd, (unsigned long)(e->t));
+      wrdec_u64(fd, (unsigned long)e->t);
       wrs(fd, " ");
       wrs(fd, e->site);
       wrs(fd, "\n");
@@ -202,6 +197,7 @@ static void trace_dump_all(int fd) {
 }
 
 /* maps dump */
+
 static void dump_maps(int fd) {
   int mfd = open("/proc/self/maps", O_RDONLY);
   if (mfd < 0) return;
@@ -212,7 +208,8 @@ static void dump_maps(int fd) {
   close(mfd);
 }
 
-/* print ready addr2line hint: module, base, pc, off, full cmd */
+/* addr2line hint */
+
 static void segv_print_addr2line_hint(unsigned long pc) {
   int fd = open("/proc/self/maps", O_RDONLY);
   if (fd < 0) return;
@@ -232,34 +229,38 @@ static void segv_print_addr2line_hint(unsigned long pc) {
     size_t j = i;
     while (j < len && buf[j] != '\n')
       j++;
+    const char *line = buf + i;
     size_t L = j - i;
-    if (L > 0) {
-      const char *line = buf + i;
 
-      unsigned long start = 0, end = 0;
+    if (L > 0) {
+      unsigned long start = 0, end = 0, pgoff = 0;
       size_t k = 0;
+
       while (k < L && ((line[k] >= '0' && line[k] <= '9') || (line[k] >= 'a' && line[k] <= 'f'))) {
         start = (start << 4) | (unsigned long)(line[k] <= '9' ? line[k] - '0' : 10 + line[k] - 'a');
         k++;
       }
-      if (k < L && line[k] == '-')
-        k++;
-      else {
-        i = j + 1;
-        continue;
-      }
+      if (k >= L || line[k] != '-') goto next;
+      k++;
       while (k < L && ((line[k] >= '0' && line[k] <= '9') || (line[k] >= 'a' && line[k] <= 'f'))) {
         end = (end << 4) | (unsigned long)(line[k] <= '9' ? line[k] - '0' : 10 + line[k] - 'a');
         k++;
       }
-
+      while (k < L && line[k] == ' ')
+        k++;
+      if (k + 3 >= L) goto next;
+      int r_xp = (line[k] == 'r' && line[k + 2] == 'x' && line[k + 3] == 'p');
       while (k < L && line[k] != ' ')
         k++;
       while (k < L && line[k] == ' ')
         k++;
-      int r_xp = 0;
-      if (k + 3 < L && line[k] == 'r' && line[k + 2] == 'x' && line[k + 3] == 'p') r_xp = 1;
-
+      if (k >= L) goto next;
+      while (k < L && line[k] == '0')
+        k++;
+      while (k < L && ((line[k] >= '0' && line[k] <= '9') || (line[k] >= 'a' && line[k] <= 'f'))) {
+        pgoff = (pgoff << 4) | (unsigned long)(line[k] <= '9' ? line[k] - '0' : 10 + line[k] - 'a');
+        k++;
+      }
       const char *path = NULL;
       size_t p = L;
       while (p > 0 && line[p - 1] == ' ')
@@ -270,41 +271,74 @@ static void segv_print_addr2line_hint(unsigned long pc) {
       if (e > p && p < L) path = line + p;
 
       if (r_xp && pc >= start && pc < end && path) {
-        unsigned long off = pc - start;
-
+        unsigned long file_off = (pc - start) + pgoff;
         wrs(2, "addr2line_mod=");
         xwrite(2, path, e - p);
         wrs(2, "\n");
-
         wrs(2, "addr2line_base=");
         wrhex_u64(2, start);
         wrs(2, "\n");
-
         wrs(2, "addr2line_pc=");
         wrhex_u64(2, pc);
         wrs(2, "\n");
-
         wrs(2, "addr2line_off=");
-        wrhex_u64(2, off);
+        wrhex_u64(2, file_off);
         wrs(2, "\n");
-
         wrs(2, "addr2line_cmd=addr2line -Cfie ");
         xwrite(2, path, e - p);
         wrs(2, " ");
-        wrhex_u64(2, off);
+        wrhex_u64(2, file_off);
         wrs(2, "\n");
         break;
       }
     }
+  next:
     i = j + 1;
   }
 }
 
-/* segv handler */
-static void segv_handler(int sig, siginfo_t *si, void *uctx) {
-  ucontext_t *uc = (ucontext_t *)uctx;
+/* dump */
+
+static void tracer_do_dump(int fd, unsigned long pc, unsigned long sp, void *addr) {
   char name[16] = {0};
   prctl(PR_GET_NAME, name);
+  wrs(fd, "trace tid=");
+  wrdec_u64(fd, (unsigned long)gettid_fast());
+  wrs(fd, " name=");
+  wrs(fd, name);
+  if (addr) {
+    wrs(fd, " addr=");
+    wrhex_u64(fd, (unsigned long)addr);
+  }
+  wrs(fd, " pc=");
+  wrhex_u64(fd, pc);
+  wrs(fd, " sp=");
+  wrhex_u64(fd, sp);
+  wrs(fd, "\n");
+  segv_print_addr2line_hint(pc);
+  dump_maps(fd);
+  trace_dump_all(fd);
+}
+
+EXPORT_API void tracer_dump_now_fd(int fd) {
+#if defined(__x86_64__)
+  unsigned long pc = (unsigned long)__builtin_return_address(0);
+  unsigned long sp = (unsigned long)__builtin_frame_address(0);
+#elif defined(__aarch64__)
+  unsigned long pc = (unsigned long)__builtin_return_address(0);
+  unsigned long sp = (unsigned long)__builtin_frame_address(0);
+#else
+  unsigned long pc = 0, sp = 0;
+#endif
+  tracer_do_dump(fd, pc, sp, NULL);
+}
+
+EXPORT_API void tracer_dump_now(void) { tracer_dump_now_fd(2); }
+
+/* segv handler */
+
+static void segv_handler(int sig, siginfo_t *si, void *uctx) {
+  ucontext_t *uc = (ucontext_t *)uctx;
 #if defined(__x86_64__)
   unsigned long pc = uc->uc_mcontext.gregs[REG_RIP];
   unsigned long sp = uc->uc_mcontext.gregs[REG_RSP];
@@ -314,28 +348,15 @@ static void segv_handler(int sig, siginfo_t *si, void *uctx) {
 #else
   unsigned long pc = 0, sp = 0;
 #endif
-  wrs(2, "segv tid=");
-  wrdec_u64(2, (unsigned long)gettid_fast());
-  wrs(2, " name=");
-  wrs(2, name);
-  wrs(2, " addr=");
-  wrhex_u64(2, (unsigned long)si->si_addr);
-  wrs(2, " pc=");
-  wrhex_u64(2, pc);
-  wrs(2, " sp=");
-  wrhex_u64(2, sp);
-  wrs(2, "\n");
-
-  /* print ready-to-run addr2line command and details */
-  segv_print_addr2line_hint(pc);
-
-  dump_maps(2);
-  trace_dump_all(2);
+  tracer_do_dump(2, pc, sp, si->si_addr);
   _exit(128 + sig);
 }
 
 EXPORT_API void tracer_setup(void) {
   trace_reg_init();
+}
+
+EXPORT_API void tracer_install_segv(void) {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_sigaction = segv_handler;
