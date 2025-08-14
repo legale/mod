@@ -123,15 +123,15 @@ static void test_stress_recv_msg_chunk(void) {
 
   stress_stop = 0;
   srand(time(NULL));
-  const int recv_cnt = 4;
-  const int if_cnt = 2;
+  const int recv_cnt = 80;
+  const int if_cnt = 40;
   pthread_t recv_threads[recv_cnt];
   pthread_t mod_threads[if_cnt];
   for (int i = 0; i < recv_cnt; i++)
     pthread_create(&recv_threads[i], NULL, recv_worker, NULL);
   for (int i = 0; i < if_cnt; i++)
     pthread_create(&mod_threads[i], NULL, if_worker, (void *)(intptr_t)i);
-  sleep(2);
+  sleep(5);
   stress_stop = 1;
   for (int i = 0; i < recv_cnt; i++)
     pthread_join(recv_threads[i], NULL);
