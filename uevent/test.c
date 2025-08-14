@@ -1299,7 +1299,7 @@ void test_real_world_load_simulation() {
     cb_ctx_t *ctx = (cb_ctx_t *)arg;
     atomic_fetch_add(&ctx->count, 1);
     uint64_t start = tu_clock_gettime_monotonic_ms();
-    if (ctx->duration_ms > 0) usleep(ctx->duration_ms * USEC_PER_MS);
+    if (ctx->duration_ms > 0) usleep(ctx->duration_ms * USEC_PER_MSEC);
     uint64_t end = tu_clock_gettime_monotonic_ms();
     PRINT_TEST_INFO("cb for name='%s' duration_ms=%" PRIu64 "", ev->name, (end - start));
   }
