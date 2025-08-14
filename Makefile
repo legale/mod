@@ -1,6 +1,6 @@
-SUBDIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil uevent \
+SUBDIRS := dbg_tracer htable list minheap netlink_getlink nlmon syslog2 timeutil uevent \
   leak_detector_c udeque hashtable-linux-kernel libpcap-dhcp-capture
-COV_DIRS := htable list minheap netlink_getlink nlmon syslog2 timeutil \
+COV_DIRS := dbg_tracer htable list minheap netlink_getlink nlmon syslog2 timeutil \
   leak_detector_c udeque hashtable-linux-kernel libpcap-dhcp-capture
 
 .PHONY: test coverage clean

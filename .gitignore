@@ -30,6 +30,7 @@ build/
 # compiled binaries
 test
 main
+tracer
 
 # object files and lib
 *.so
