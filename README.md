@@ -4,6 +4,7 @@ This repository contains several small C libraries and utilities. Each module li
 
 ## Modules
 
+- **dbg_tracer** – simple debugging tracer.
 - **htable** – simple hash table implementation.
 - **list** – doubly linked list helpers from the Linux kernel.
 - **minheap** – binary min-heap container.

@@ -3,6 +3,7 @@
  */
 
 #define _GNU_SOURCE
+#include "dbg_tracer.h"
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -63,7 +64,7 @@ static void wrdec_u64(int fd, unsigned long v) {
 }
 
 /* safe snprintf that trips immediately */
-int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
+EXPORT_API int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   int n = vsnprintf(dst, cap, fmt, ap);
@@ -101,6 +102,7 @@ typedef struct {
 static trace_reg_t *gtr;
 static __thread trace_slot_t *my_slot;
 
+static uint64_t now_ms(void) __attribute__((unused));
 static uint64_t now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -138,15 +140,13 @@ void trace_reg_attach_name(const char *name) {
 
   char tname[16];
   if (name && *name) {
-    strncpy(tname, name, sizeof(tname) - 1);
-    tname[sizeof(tname) - 1] = '\0';
+    snprintf(tname, sizeof(tname), "%s", name);
   } else {
     safe_snprintf(tname, sizeof(tname), "wrk%d", id);
   }
 
   prctl(PR_SET_NAME, tname);
-  strncpy(s->name, tname, sizeof(s->name) - 1);
-  s->name[sizeof(s->name) - 1] = '\0';
+  snprintf(s->name, sizeof(s->name), "%s", tname);
 
   atomic_store(&s->idx, 0);
   atomic_store(&s->used, 1);
@@ -160,11 +160,10 @@ void trace_set_thread_name(const char *name) {
     return;
   }
   prctl(PR_SET_NAME, name);
-  strncpy(my_slot->name, name, sizeof(my_slot->name) - 1);
-  my_slot->name[sizeof(my_slot->name) - 1] = '\0';
+  snprintf(my_slot->name, sizeof(my_slot->name), "%s", name);
 }
 
-void trace_reg_attach(void) { trace_reg_attach_name(NULL); }
+EXPORT_API void trace_reg_attach(void) { trace_reg_attach_name(NULL); }
 
 #define STR1(x) #x
 #define STR2(x) STR1(x)
@@ -192,7 +191,7 @@ static void trace_dump_all(int fd) {
     unsigned start = (n > TRACE_N) ? (n - TRACE_N) : 0;
     for (unsigned j = start; j < n; j++) {
       trace_ent_t *e = &s->ring[j % TRACE_N];
-      if (!e->site) continue;
+    if (!e->site[0]) continue;
       wrs(fd, "  ");
       wrdec_u64(fd, (unsigned long)(e->t));
       wrs(fd, " ");
@@ -335,7 +334,7 @@ static void segv_handler(int sig, siginfo_t *si, void *uctx) {
   _exit(128 + sig);
 }
 
-void tracer_setup(void) {
+EXPORT_API void tracer_setup(void) {
   trace_reg_init();
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
@@ -343,59 +342,4 @@ void tracer_setup(void) {
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
   sigaction(SIGSEGV, &sa, NULL);
-}
-
-/* header-like exports */
-#undef TRACER_EXPORTS
-#define TRACER_EXPORTS
-#ifdef TRACER_EXPORTS
-extern void tracer_setup(void);
-extern void trace_reg_attach(void);
-extern int safe_snprintf(char *dst, size_t cap, const char *fmt, ...);
-extern void *demo_thread_fn(void *arg);
-#endif
-
-/* demo */
-
-#include <errno.h>
-
-static void sleep_ms(int ms) {
-  struct timespec ts;
-  ts.tv_sec = ms / 1000;
-  ts.tv_nsec = (ms % 1000) * 1000000L;
-  while (nanosleep(&ts, &ts) && errno == EINTR) {
-  }
-}
-
-void *worker(void *arg) {
-  trace_reg_attach();
-  int id = (int)(uintptr_t)arg;
-  char name[16];
-  snprintf(name, sizeof(name), "wrk%u", (unsigned)id);
-  prctl(PR_SET_NAME, name);
-  unsigned t = 0;
-  for (;;) {
-    TRACE();
-    char buf[32];
-    safe_snprintf(buf, sizeof(buf), "thr=%d tick=%u\n", id, t);
-    xwrite(1, buf, strlen(buf));
-    if (id == 2 && t == 5) {
-      /* trigger: intentional overflow */
-      char small[8];
-      safe_snprintf(small, sizeof(small), "boom-%u-long-long-msg", t);
-    }
-    t++;
-    sleep_ms(1000);
-  }
-  return NULL;
-}
-
-int main(int argc, char **argv) {
-  tracer_setup();
-  pthread_t th[3];
-  for (int i = 0; i < 3; i++)
-    pthread_create(&th[i], NULL, worker, (void *)(uintptr_t)i);
-  for (int i = 0; i < 3; i++)
-    pthread_join(th[i], NULL);
-  return 0;
 }
