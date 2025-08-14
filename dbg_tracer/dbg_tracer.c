@@ -1,10 +1,10 @@
 /* dbg_tracer.c
  * build: gcc -O2 -g -fno-omit-frame-pointer -fstack-protector-strong -D_FORTIFY_SOURCE=2 -pthread -rdynamic -fPIC -shared -o libdbg_tracer.so dbg_tracer.c
- * link:  -ldl if needed
  */
 
 #define _GNU_SOURCE
 #include "dbg_tracer.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
@@ -39,7 +39,6 @@ static void wrs(int fd, const char *s) { xwrite(fd, s, strlen(s)); }
 static void wrhex_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
-  b[i--] = 0;
   if (!v) b[i--] = '0';
   const char *h = "0123456789abcdef";
   while (v && i >= 0) {
@@ -48,19 +47,18 @@ static void wrhex_u64(int fd, unsigned long v) {
   }
   b[i--] = 'x';
   b[i--] = '0';
-  xwrite(fd, b + i + 1, 31 - i);
+  xwrite(fd, b + i + 1, 31 - i - 1);
 }
 
 static void wrdec_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
-  b[i--] = 0;
   if (!v) b[i--] = '0';
   while (v && i >= 0) {
     b[i--] = '0' + (v % 10);
     v /= 10;
   }
-  xwrite(fd, b + i + 1, 31 - i);
+  xwrite(fd, b + i + 1, 31 - i - 1);
 }
 
 EXPORT_API int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
@@ -203,26 +201,34 @@ static void dump_maps(int fd) {
   if (mfd < 0) return;
   char buf[4096];
   ssize_t n;
-  while ((n = read(mfd, buf, sizeof(buf))) > 0)
-    xwrite(fd, buf, n);
+  for (;;) {
+    n = read(mfd, buf, sizeof(buf));
+    if (n > 0) {
+      xwrite(fd, buf, (size_t)n);
+      continue;
+    }
+    if (n == 0) break;
+    if (errno == EINTR) continue;
+    break;
+  }
   close(mfd);
 }
 
-/* addr2line hint */
+/* addr2line hint to same fd */
 
-static void segv_print_addr2line_hint(unsigned long pc) {
-  int fd = open("/proc/self/maps", O_RDONLY);
-  if (fd < 0) return;
+static void segv_print_addr2line_hint(int fd, unsigned long pc) {
+  int mfd = open("/proc/self/maps", O_RDONLY);
+  if (mfd < 0) return;
 
   static char buf[65536];
   size_t len = 0;
   for (;;) {
-    ssize_t n = read(fd, buf + len, sizeof(buf) - len);
+    ssize_t n = read(mfd, buf + len, sizeof(buf) - len);
     if (n <= 0) break;
     len += (size_t)n;
     if (len == sizeof(buf)) break;
   }
-  close(fd);
+  close(mfd);
 
   size_t i = 0;
   while (i < len) {
@@ -272,23 +278,23 @@ static void segv_print_addr2line_hint(unsigned long pc) {
 
       if (r_xp && pc >= start && pc < end && path) {
         unsigned long file_off = (pc - start) + pgoff;
-        wrs(2, "addr2line_mod=");
-        xwrite(2, path, e - p);
-        wrs(2, "\n");
-        wrs(2, "addr2line_base=");
-        wrhex_u64(2, start);
-        wrs(2, "\n");
-        wrs(2, "addr2line_pc=");
-        wrhex_u64(2, pc);
-        wrs(2, "\n");
-        wrs(2, "addr2line_off=");
-        wrhex_u64(2, file_off);
-        wrs(2, "\n");
-        wrs(2, "addr2line_cmd=addr2line -Cfie ");
-        xwrite(2, path, e - p);
-        wrs(2, " ");
-        wrhex_u64(2, file_off);
-        wrs(2, "\n");
+        wrs(fd, "addr2line_mod=");
+        xwrite(fd, path, e - p);
+        wrs(fd, "\n");
+        wrs(fd, "addr2line_base=");
+        wrhex_u64(fd, start);
+        wrs(fd, "\n");
+        wrs(fd, "addr2line_pc=");
+        wrhex_u64(fd, pc);
+        wrs(fd, "\n");
+        wrs(fd, "addr2line_off=");
+        wrhex_u64(fd, file_off);
+        wrs(fd, "\n");
+        wrs(fd, "addr2line_cmd=addr2line -Cfie ");
+        xwrite(fd, path, e - p);
+        wrs(fd, " ");
+        wrhex_u64(fd, file_off);
+        wrs(fd, "\n");
         break;
       }
     }
@@ -315,9 +321,13 @@ static void tracer_do_dump(int fd, unsigned long pc, unsigned long sp, void *add
   wrs(fd, " sp=");
   wrhex_u64(fd, sp);
   wrs(fd, "\n");
-  segv_print_addr2line_hint(pc);
+
+  segv_print_addr2line_hint(fd, pc);
   dump_maps(fd);
   trace_dump_all(fd);
+
+  /* ensure visibility for readers of files and pipes */
+  fsync(fd);
 }
 
 EXPORT_API void tracer_dump_now_fd(int fd) {
