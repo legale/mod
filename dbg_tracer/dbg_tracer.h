@@ -39,4 +39,17 @@ EXPORT_API void tracer_mark_point(const char *file, int line, const char *func);
 /* macro visible to users of the lib */
 #define TRACE() tracer_mark_point(__FILE__, __LINE__, __func__)
 
+
+// macro to set thread name
+#define PTHREAD_SET_NAME(name)                 \
+  do {                                         \
+    char __buf[16];                            \
+    size_t __len = strlen(name);               \
+    if (__len > 15) __len = 15;                \
+    memcpy(__buf, name, __len);                \
+    __buf[__len] = '\0';                       \
+    pthread_setname_np(pthread_self(), __buf); \
+  } while (0)
+
+
 #endif

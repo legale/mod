@@ -373,4 +373,5 @@ EXPORT_API void tracer_install_segv(void) {
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = SA_SIGINFO | SA_RESETHAND;
   sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGILL, &sa, NULL);
 }
