@@ -96,7 +96,6 @@ static void *thr_body(void *arg_) {
 
 static void fn_crash_memwrite(void) {
   tracer_setup();
-  tracer_install_segv();
   trace_reg_attach_name("crasher");
   TRACE();
   volatile int *p = NULL;

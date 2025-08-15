@@ -39,26 +39,40 @@ static void wrs(int fd, const char *s) { xwrite(fd, s, strlen(s)); }
 static void wrhex_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
-  if (!v) b[i--] = '0';
   const char *h = "0123456789abcdef";
-  while (v && i >= 0) {
-    b[i--] = h[v & 0xf];
-    v >>= 4;
+
+  /* handle zero explicitly */
+  if (!v) {
+    b[i--] = '0';
+  } else {
+    while (v && i >= 0) {
+      b[i--] = h[v & 0xf];
+      v >>= 4;
+    }
   }
   b[i--] = 'x';
   b[i--] = '0';
-  xwrite(fd, b + i + 1, 31 - i - 1);
+
+  /* write from first filled char */
+  xwrite(fd, b + i + 1, 31 - i);
 }
 
 static void wrdec_u64(int fd, unsigned long v) {
   char b[32];
   int i = 31;
-  if (!v) b[i--] = '0';
-  while (v && i >= 0) {
-    b[i--] = '0' + (v % 10);
-    v /= 10;
+
+  /* handle zero explicitly */
+  if (!v) {
+    b[i--] = '0';
+  } else {
+    while (v && i >= 0) {
+      b[i--] = '0' + (v % 10);
+      v /= 10;
+    }
   }
-  xwrite(fd, b + i + 1, 31 - i - 1);
+
+  /* write from first filled char */
+  xwrite(fd, b + i + 1, 31 - i);
 }
 
 EXPORT_API int safe_snprintf(char *dst, size_t cap, const char *fmt, ...) {
@@ -216,6 +230,22 @@ static void dump_maps(int fd) {
 
 /* addr2line hint to same fd */
 
+#include <elf.h>
+#include <sys/stat.h>
+
+/* 0 = ET_EXEC (not PIE), 1 = ET_DYN (PIE) */
+static int is_pie_binary(void) {
+  int fd = open("/proc/self/exe", O_RDONLY);
+  if (fd < 0) return 1; /* assume PIE */
+  Elf64_Ehdr hdr;
+  if (read(fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
+    close(fd);
+    return 1;
+  }
+  close(fd);
+  return hdr.e_type == ET_DYN;
+}
+
 static void segv_print_addr2line_hint(int fd, unsigned long pc) {
   int mfd = open("/proc/self/maps", O_RDONLY);
   if (mfd < 0) return;
@@ -276,8 +306,9 @@ static void segv_print_addr2line_hint(int fd, unsigned long pc) {
         p--;
       if (e > p && p < L) path = line + p;
 
+      int pie = is_pie_binary();
       if (r_xp && pc >= start && pc < end && path) {
-        unsigned long file_off = (pc - start) + pgoff;
+        unsigned long file_off = pie ? (pc - start + pgoff) : pc;
         wrs(fd, "addr2line_mod=");
         xwrite(fd, path, e - p);
         wrs(fd, "\n");
@@ -364,6 +395,7 @@ static void segv_handler(int sig, siginfo_t *si, void *uctx) {
 
 EXPORT_API void tracer_setup(void) {
   trace_reg_init();
+  tracer_install_segv();
 }
 
 EXPORT_API void tracer_install_segv(void) {
