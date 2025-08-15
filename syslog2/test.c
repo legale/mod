@@ -12,9 +12,6 @@
 
 
 void *thread_func(void *arg) {
-  PTHREAD_SET_NAME("worker");
-  SET_CURRENT_FUNCTION;
-
   int id = (int)(intptr_t)arg;
   for (int i = 0; i < 5; i++) {
     syslog2(LOG_INFO, "thread %d iteration %d", id, i);
@@ -51,9 +48,7 @@ void test_threads(void) {
   }
 }
 
-void test_last_functions(void) {
-  syslog2_print_last_functions();
-}
+
 
 int main(void) {
   syslog2(LOG_NOTICE, "starting syslog2 tests");
@@ -62,7 +57,6 @@ int main(void) {
   test_setup_syslog2();
   test_no_syslog();
   test_threads();
-  test_last_functions();
 
   syslog2(LOG_NOTICE, "finished syslog2 tests");
   return 0;

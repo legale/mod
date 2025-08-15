@@ -1,6 +1,6 @@
 NAME = syslog2
 CC ?= gcc
-CFLAGS_BASE = -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
+CFLAGS_BASE = -I ../ -Wall -Wextra -Werror -Wno-unused-parameter -O2 -g -fvisibility=hidden -fno-common -ffunction-sections -fdata-sections
 CFLAGS = $(CFLAGS_BASE) -fPIC
 LDFLAGS = -Wl,--gc-sections
 
