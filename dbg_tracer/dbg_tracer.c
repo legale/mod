@@ -2,7 +2,12 @@
  * build: gcc -O2 -g -fno-omit-frame-pointer -fstack-protector-strong -D_FORTIFY_SOURCE=2 -pthread -rdynamic -fPIC -shared -o libdbg_tracer.so dbg_tracer.c
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
+#include <features.h> //to detect musl libc
+
 #include "dbg_tracer.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -236,12 +241,20 @@ static void dump_maps(int fd) {
 /* 0 = ET_EXEC (not PIE), 1 = ET_DYN (PIE) */
 static int is_pie_binary(void) {
   int fd = open("/proc/self/exe", O_RDONLY);
-  if (fd < 0) return 1; /* assume PIE */
-  Elf64_Ehdr hdr;
-  if (read(fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
+  if (fd < 0) return 1;
+#if UINTPTR_MAX == 0xffffffffu || defined(__arm__)
+  Elf32_Ehdr hdr;
+  if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr)) {
     close(fd);
     return 1;
   }
+#else
+  Elf64_Ehdr hdr;
+  if (read(fd, &hdr, sizeof(hdr)) != (ssize_t)sizeof(hdr)) {
+    close(fd);
+    return 1;
+  }
+#endif
   close(fd);
   return hdr.e_type == ET_DYN;
 }
@@ -361,37 +374,124 @@ static void tracer_do_dump(int fd, unsigned long pc, unsigned long sp, void *add
   fsync(fd);
 }
 
-EXPORT_API void tracer_dump_now_fd(int fd) {
-#if defined(__x86_64__)
-  unsigned long pc = (unsigned long)__builtin_return_address(0);
-  unsigned long sp = (unsigned long)__builtin_frame_address(0);
-#elif defined(__aarch64__)
-  unsigned long pc = (unsigned long)__builtin_return_address(0);
-  unsigned long sp = (unsigned long)__builtin_frame_address(0);
+/* add verbose debug prints to see which path is taken and what pc/sp are */
+
+static int extract_pc_sp(const ucontext_t *uc, unsigned long *pc, unsigned long *sp) {
+#if defined(__GLIBC__)
+  wrs(2, "[dbg] libc=glibc\n");
+#elif defined(__UCLIBC__)
+  wrs(2, "[dbg] libc=uclibc\n");
+#elif defined(__DEFINED_siginfo_t) && defined(__DEFINED_ucontext_t)
+  wrs(2, "[dbg] libc=musl (via features.h)\n");
+#elif defined(__linux__) && !defined(__GLIBC__) && !defined(__UCLIBC__)
+  wrs(2, "[dbg] libc=musl (heuristic)\n");
 #else
+  wrs(2, "[dbg] libc=unknown\n");
+#endif
+
+#if defined(REG_RIP) && defined(REG_RSP)
+  wrs(2, "[dbg] extract path: gregs[REG_RIP,REG_RSP]\n");
+  *pc = (unsigned long)uc->uc_mcontext.gregs[REG_RIP];
+  *sp = (unsigned long)uc->uc_mcontext.gregs[REG_RSP];
+  return 1;
+#elif defined(REG_EIP) && defined(REG_ESP)
+  wrs(2, "[dbg] extract path: gregs[REG_EIP,REG_ESP]\n");
+  *pc = (unsigned long)uc->uc_mcontext.gregs[REG_EIP];
+  *sp = (unsigned long)uc->uc_mcontext.gregs[REG_ESP];
+  return 1;
+#elif defined(REG_EPC) && defined(REG_SP)
+  wrs(2, "[dbg] extract path: gregs[REG_EPC,REG_SP]\n");
+  *pc = (unsigned long)uc->uc_mcontext.gregs[REG_EPC];
+  *sp = (unsigned long)uc->uc_mcontext.gregs[REG_SP];
+  return 1;
+#elif defined(__mips__)
+  wrs(2, "[dbg] extract path: mips mcontext.pc + gregs[29]\n");
+  *pc = (unsigned long)uc->uc_mcontext.pc;
+  *pc &= ~(unsigned long)1; /* убираем micromips бит */
+  *sp = (unsigned long)uc->uc_mcontext.gregs[29];
+  return 1;
+#elif defined(__arm__)
+  wrs(2, "[dbg] extract path: arm arm_pc/arm_sp\n");
+  *pc = (unsigned long)uc->uc_mcontext.arm_pc;
+  *sp = (unsigned long)uc->uc_mcontext.arm_sp;
+  return 1;
+#else
+  wrs(2, "[dbg] extract path: unknown layout\n");
+  (void)uc;
+  (void)pc;
+  (void)sp;
+  return 0;
+#endif
+}
+
+EXPORT_API void tracer_dump_now_fd(int fd) {
+#if UINTPTR_MAX == 0xffffffffffffffffull
+  wrs(2, "[dbg] tracer_dump_now_fd: 64-bit branch\n");
+  unsigned long pc = (unsigned long)__builtin_return_address(0);
+  unsigned long sp = (unsigned long)__builtin_frame_address(0);
+#elif UINTPTR_MAX == 0xffffffffu
+  wrs(2, "[dbg] tracer_dump_now_fd: 32-bit branch\n");
+  unsigned long pc = 0, sp = 0;
+#if defined(__mips__)
+  wrs(2, "[dbg] tracer_dump_now_fd: mips inline asm path\n");
+  asm volatile("move %0, $sp" : "=r"(sp));
+  void *_here = &&lbl_here_tr_dump;
+  pc = (unsigned long)_here;
+lbl_here_tr_dump:;
+#else
+  wrs(2, "[dbg] tracer_dump_now_fd: generic builtin path\n");
+  pc = (unsigned long)__builtin_return_address(0);
+  sp = (unsigned long)__builtin_frame_address(0);
+#endif
+#else
+  wrs(2, "[dbg] tracer_dump_now_fd: unknown pointer size\n");
   unsigned long pc = 0, sp = 0;
 #endif
+  wrs(2, "[dbg] tracer_dump_now_fd values: pc=");
+  wrhex_u64(2, pc);
+  wrs(2, " sp=");
+  wrhex_u64(2, sp);
+  wrs(2, "\n");
   tracer_do_dump(fd, pc, sp, NULL);
 }
 
-EXPORT_API void tracer_dump_now(void) { tracer_dump_now_fd(2); }
-
-/* segv handler */
-
 static void segv_handler(int sig, siginfo_t *si, void *uctx) {
+  wrs(2, "[dbg] segv_handler enter\n");
   ucontext_t *uc = (ucontext_t *)uctx;
-#if defined(__x86_64__)
-  unsigned long pc = uc->uc_mcontext.gregs[REG_RIP];
-  unsigned long sp = uc->uc_mcontext.gregs[REG_RSP];
-#elif defined(__aarch64__)
-  unsigned long pc = uc->uc_mcontext.pc;
-  unsigned long sp = uc->uc_mcontext.sp;
-#else
+
   unsigned long pc = 0, sp = 0;
+  if (!extract_pc_sp(uc, &pc, &sp)) {
+    wrs(2, "[dbg] segv_handler: extract_pc_sp failed, trying inline fallback\n");
+#if UINTPTR_MAX == 0xffffffffu
+#if defined(__mips__)
+    asm volatile("move %0, $sp" : "=r"(sp));
+    void *_here = &&lbl_here_segv;
+    pc = (unsigned long)_here;
+  lbl_here_segv:;
+#else
+    pc = (unsigned long)__builtin_return_address(0);
+    sp = (unsigned long)__builtin_frame_address(0);
 #endif
+#endif
+  }
+
+  wrs(2, "[dbg] segv_handler values: pc=");
+  wrhex_u64(2, pc);
+  wrs(2, " sp=");
+  wrhex_u64(2, sp);
+  wrs(2, " si_addr=");
+  wrhex_u64(2, (unsigned long)si->si_addr);
+  wrs(2, "\n");
+
   tracer_do_dump(2, pc, sp, si->si_addr);
   _exit(128 + sig);
 }
+
+EXPORT_API void tracer_dump_now(void) {
+  tracer_dump_now_fd(2);
+}
+
+/* segv handler */
 
 EXPORT_API void tracer_setup(void) {
   trace_reg_init();
