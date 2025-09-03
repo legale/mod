@@ -133,15 +133,12 @@ static void wakeup_fd_read_cb(uevent_t *ev, int fd, short events, void *arg) {
     syslog2(LOG_ERR, "[TIMER_ERR] failed to read from wakeup_fd=%d: %s", fd, strerror(errno));
   } else {
     syslog2(LOG_DEBUG, "[TIMER_WAK] read wakeup_fd=%d OK", fd);
+    // Wakeup fd is considered drained only after the read loop above finishes.
+    // Reset the flag here so subsequent wakeups can be coalesced until the
+    // eventfd is drained again by this callback.
     atomic_store_explicit(&ev->base->wakeup_fd_written, false, memory_order_release);
   }
   TMARK(2, "wakeup_fd_read_cb END");
-}
-
-static void wakeup_fd_reset(uevent_base_t *base) {
-  if (atomic_load_explicit(&base->wakeup_fd_written, memory_order_acquire)) {
-    wakeup_fd_read_cb(&base->wakeup_event, base->wakeup_event.fd, 0, NULL);
-  }
 }
 
 static void uevent_base_wakeup(uevent_base_t *base) {
@@ -915,7 +912,6 @@ static void uevent_handle_timers(uevent_base_t *base) {
 
 static int calculate_epoll_timeout(uevent_base_t *base) {
   int epoll_timeout = EPOLL_MAX_TIMEOUT_MS;
-  wakeup_fd_reset(base);
   if (atomic_load_explicit(&base->num_active_timers, memory_order_acquire) == 0) {
     return epoll_timeout;
   }
